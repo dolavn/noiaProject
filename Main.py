@@ -2,30 +2,34 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def create_c_vec(y):
+def create_c_vecs(y):
     ans = []
     for val in range(max(y)+1):
         ans.append([1 if elem == val else 0 for elem in y])
     return np.array(ans)
 
 
-def softmax_obj(x, y, w):
-    c = create_c_vec(y)
+def softmax_obj(x, y, w, b):
+    c = create_c_vecs(y)
     max_label = max(y)+1
-    sum_all = sum([np.exp(np.dot(x.T, w[i])) for i in range(max_label)])
-    val = -sum([np.dot(c[i].T, np.log(np.exp(np.dot(x.T, w[i]))/sum_all)) for i in range(max_label)])/len(x)
+    sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]) for i in range(max_label)])
+    val = -sum([np.dot(c[i].T, np.log(np.exp(np.dot(x.T, w[i])+b[i])/sum_all)) for i in range(max_label)])/len(x)
     return val
 
 
-def softmax_grad(x, y, w):
-    c = create_c_vec(y)
+def softmax_grad(x, y, w, b):
+    c = create_c_vecs(y)
     max_label = max(y)+1
-    sum_all = sum([np.exp(np.dot(x.T, w[i])) for i in range(max_label)])
-    cis = [(np.exp(np.dot(x.T, w[i]))/sum_all)-c[i] for i in range(max_label)]
-    cis = [np.dot(x, elem) for elem in cis]
+    sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]) for i in range(max_label)])
+    cis = [(np.exp(np.dot(x.T, w[i])+b[i])/sum_all)-c[i] for i in range(max_label)]
+    cis = [1/len(x)*np.dot(x, elem) for elem in cis]
     cis = [elem.reshape(1, -1) for elem in cis]
     ans = np.concatenate(cis, axis=0)
-    return ans
+    bs = [np.dot(x.T, w[i]) + b[i] for i in range(max_label)]
+    bs = [np.dot(curr, np.ones(len(curr))) for curr in bs]
+    bs = [curr - sum(c[i]) for i, curr in enumerate(bs)]
+    bs = np.array([(1/len(x))*curr for curr in bs])
+    return ans, bs
 
 
 def gradient_test(f, g, dim):
@@ -61,20 +65,22 @@ def gradient_test(f, g, dim):
 x = np.array([[1, 2], [2, 2], [1, 0], [1, 1], [0, 2]]).T
 y = np.array([2, 3, 0, 1, 1])
 w = np.array([[0.2, 1], [0.1, 0], [1, 0], [0.1, 0]])
+b = np.array([1, 1, 1, 1])
 print(x)
 print(y)
-v = softmax_obj(x, y, w)
+v = softmax_obj(x, y, w, b)
 print(v)
 vs = [v]
-gradient_test(lambda a: softmax_obj(x, y, a),
-              lambda a: softmax_grad(x, y, a),
-              w.shape)
+#gradient_test(lambda a: softmax_obj(x, y, a, b),
+#              lambda a: softmax_grad(x, y, a, b),
+#              w.shape)
 for _ in range(100):
-    g = softmax_grad(x, y, w)
+    g, gb = softmax_grad(x, y, w, b)
     w = w - 0.1*g
-    vs.append(softmax_obj(x, y, w))
-v = softmax_obj(x, y, w)
-print('hello world3')
+    b = b - 0.1*gb
+    vs.append(softmax_obj(x, y, w, b))
+v = softmax_obj(x, y, w, b)
+print(w, b)
 print(v)
 plt.plot(range(len(vs)), vs)
 plt.show()
