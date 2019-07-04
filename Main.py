@@ -76,5 +76,5 @@ for _ in range(100):
 v = softmax_obj(x, y, w)
 print('hello world')
 print(v)
-#plt.plot(range(len(vs)), vs)
-#plt.show()
+plt.plot(range(len(vs)), vs)
+plt.show()
