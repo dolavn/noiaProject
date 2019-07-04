@@ -43,6 +43,7 @@ def softmax_grad(x, y, num_of_labels, w, b):
     bs = [np.dot(curr, np.ones(len(curr))) for curr in bs]
     bs = [curr - sum(c[i]) for i, curr in enumerate(bs)]
     bs = np.array([(1/len(x))*curr for curr in bs])
+    bs = np.array([0 for b in bs])
     return ans, bs
 
 
@@ -79,7 +80,7 @@ def gradient_test(f, g, dim):
 x = np.array([[5, 2], [2, 2], [1, 0], [1, 1], [0, 2], [1, 4], [2, 8], [1, 2], [2, 4], [1, 9]]).T
 y = np.array([2, 3, 0, 1, 1, 2, 3, 0, 3, 2])
 w = np.array([[0.2, 1], [0.1, 0], [1, 0], [0.1, 0]])
-b = np.array([1, 1, 1, 1])
+b = np.array([0, 0, 0, 0])
 
 max_label = max(y)+1
 
@@ -108,23 +109,7 @@ def grad(wb, indices):
 
 
 wb = np.concatenate((w.flatten(), b.T), axis=None)
-w, obj_train = stochastic_gradient_descent(len(x.T), max(y)+1, obj, grad, wb.shape, batch_size=2)
+w, obj_train = stochastic_gradient_descent(len(x.T), max(y)+1, obj, grad, wb.shape, batch_size=10)
 plt.plot(range(len(obj_train)), obj_train)
 plt.show()
 exit()
-v = softmax_obj(x, y, w, b)
-print(v)
-vs = [v]
-#gradient_test(lambda a: softmax_obj(x, y, a, b),
-#              lambda a: softmax_grad(x, y, a, b),
-#              w.shape)
-for _ in range(100):
-    g, gb = softmax_grad(x, y, w, b)
-    w = w - 0.02*g
-    b = b - 0.02*gb
-    vs.append(softmax_obj(x, y, w, b))
-v = softmax_obj(x, y, w, b)
-print(w, b)
-print(v)
-plt.plot(range(len(vs)), vs)
-plt.show()

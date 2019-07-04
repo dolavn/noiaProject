@@ -2,9 +2,9 @@ import numpy as np
 
 MAX_ITER = 40
 
-ALPHA_0 = 0.5
+ALPHA_0 = 1
 BETA = 0.5
-C = 10e-4
+C = 10e-6
 EPSILON = 10e-4
 
 
@@ -18,9 +18,14 @@ def get_step_size(x, obj, grad, dir):
     :return: The value of the step size
     """
     alpha = ALPHA_0
+    #dir = dir/np.linalg.norm(dir)
     for j in range(MAX_ITER):
         phi = obj(x+alpha*dir)
+        m = np.dot(grad, dir)
+        #print(phi)
+        #print(obj(x)+C*alpha*np.dot(grad, dir))
         if phi <= obj(x)+C*alpha*np.dot(grad, dir):
+            print(alpha)
             return alpha
         else:
             alpha = BETA*alpha
@@ -62,12 +67,12 @@ def stochastic_gradient_descent(data_size, num_of_labels, objective, gradient, i
         curr_batch_ind = (curr_batch_ind+1) % len(batches)
         g = gradient(w, curr_batch)
         obj_train.append(objective(w, range(data_size)))
-        alpha = get_step_size(w, lambda x: objective(x, curr_batch), g, g)
-        alpha = 0.01
+        alpha = get_step_size(w, lambda x: objective(x, curr_batch), g, -g)
+        #alpha = 0.01
         if alpha == 0:
             break
         w = w - alpha*g
         if np.linalg.norm(g)/np.linalg.norm(grad1) <= EPSILON:
             break
-    obj_train = [np.abs(obj - objective(w, range(data_size))) for obj in obj_train]
+    #obj_train = [np.abs(obj - objective(w, range(data_size))) for obj in obj_train]
     return w, obj_train
