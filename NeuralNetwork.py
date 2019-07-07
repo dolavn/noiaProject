@@ -1,10 +1,12 @@
 import numpy as np
 
-def relu_activation():
-    pass
 
-def tanh_activation():
-    pass
+def relu_activation(x):
+    return x
+
+
+def tanh_activation(x):
+    return x
 
 
 class Layer:
@@ -18,15 +20,39 @@ class Layer:
         self._weights = np.random.rand(input_dim, output_dim)
         self._bias = np.random.rand(output_dim)
 
+    def get_input_dim(self):
+        return self._input_dim
+
+    def get_output_dim(self):
+        return self._output_dim
+
     def forward_pass(self, input):
         if self._input_dim != input.shape[0]:
-            raise BaseException("Bad dimensions")
+            raise BaseException("Invalid dimensions")
         return self._activation(np.dot(input, self._weights)+self._bias)
 
 
 class Network:
 
     def __init__(self):
+        self._input_dim = -1
+        self._output_dim = -1
         self._layers = []
 
+    def add_layer(self, layer):
+        self._layers.append(layer)
+        if self._input_dim == -1:
+            self._input_dim = layer.get_input_dim()
+        self.output_dim = layer.get_output_dim()
 
+    def forward_pass(self, input):
+        if self._input_dim != input.shape[0]:
+            raise BaseException("Invalid dimensions")
+
+
+#TESTING
+
+
+if __name__ == '__main__':
+    l = Layer(2, 5, relu_activation)
+    a = np.array([1, 2, 1])

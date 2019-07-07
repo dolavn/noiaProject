@@ -22,7 +22,6 @@ def softmax_obj(x, y, num_of_labels, w, b):
     c = create_c_vecs(y, num_of_labels)
     mu = get_mu(w, x, b, num_of_labels)
     sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(num_of_labels)])
-    elem_list = [np.dot(c[i].T, np.log(np.exp(np.dot(x.T, w[i])+b[i]-mu)/sum_all)) for i in range(num_of_labels)]
     val = -sum([np.dot(c[i].T, np.log(np.exp(np.dot(x.T, w[i])+b[i]-mu)/sum_all)) for i in range(num_of_labels)])/len(x)
     return val
 
