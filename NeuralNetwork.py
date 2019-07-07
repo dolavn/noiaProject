@@ -3,10 +3,11 @@ import numpy.matlib
 
 
 def relu_activation_fp(x, W, b):
-    return x
+    return np.maximum(np.dot(W, x)+(np.matlib.repmat(b, x.shape[1], 1)).T, 0)
 
 
 def relu_activation_gp(x, W, b):
+    dg = np.append(W, np.ones(W.shape[1]))
     return x
 
 
@@ -15,7 +16,8 @@ def relu_activation_gx(x, W, b):
 
 
 def tanh_activation_fp(x, W, b):
-    return x
+    return np.tanh(np.dot(W, x)+(np.matlib.repmat(b, x.shape[1], 1)).T)
+
 
 
 def tanh_activation_gp(x, W, b):
@@ -155,3 +157,14 @@ if __name__ == '__main__':
     print(g)
     print(sm_activation_fp(X, W, b))
     n = Network()
+
+    exit()
+
+    #Shlomit's testing code
+    a = np.array([1, 2, 1])
+    x = np.array([[-5, -2], [2, -2], [-1, 0], [-1, 1], [0, 2], [1, 4], [2, 8], [1, 2], [2, 4], [1, 9]]).T
+    #y = np.array([2, 3, 0, 1, 1, 2, 3, 0, 3, 2])
+    W = np.array([[0.2, 1], [0.1, 0], [1, 0], [0.1, 0]])
+    b = np.array([0, 1, 0, 1])
+    dg = np.append(W, np.ones(W.shape[1]))
+    print(dg)
