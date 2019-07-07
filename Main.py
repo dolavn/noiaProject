@@ -38,7 +38,6 @@ def softmax_grad(x, y, num_of_labels, w, b):
     bs = [np.dot(curr, np.ones(len(curr))) for curr in bs]
     bs = [curr - sum(c[i]) for i, curr in enumerate(bs)]
     bs = np.array([(1/len(x))*curr for curr in bs])
-    #bs = np.array([0 for b in bs])
     return ans, bs
 
 
