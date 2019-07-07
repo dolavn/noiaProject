@@ -1,6 +1,6 @@
 import numpy as np
 
-MAX_ITER = 40
+MAX_ITER = 150
 
 ALPHA_0 = 1
 BETA = 0.5
@@ -62,13 +62,13 @@ def stochastic_gradient_descent(data_size, num_of_labels, objective, gradient, i
     r = range(MAX_ITER)
     curr_batch = batches[curr_batch_ind]
     grad1 = gradient(w, curr_batch)
-    for _ in r:
+    for k in r:
         curr_batch = batches[curr_batch_ind]
         curr_batch_ind = (curr_batch_ind+1) % len(batches)
         g = gradient(w, curr_batch)
         obj_train.append(objective(w, range(data_size)))
-        alpha = get_step_size(w, lambda x: objective(x, curr_batch), g, -g)
-        #alpha = 0.01
+        #alpha = get_step_size(w, lambda x: objective(x, curr_batch), g, -g)
+        alpha = 0.01 if k < 100 else 0.001
         if alpha == 0:
             break
         w = w - alpha*g
