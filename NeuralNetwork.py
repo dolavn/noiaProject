@@ -42,6 +42,7 @@ def tanh_activation_gp(x, W, b):
     gp = np.concatenate((np.dot(x, (1 - np.tanh(argument) ** 2).T), (1 - np.tanh(argument) ** 2).T), axis=0)
     return gp.flatten()
 
+
 def tanh_activation_gx(x, W, b):
     argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
     return np.dot(W.T, (1 - np.tanh(argument) ** 2)).flatten()
@@ -142,7 +143,9 @@ class Layer:
     def forward_pass(self, input):
         if self._input_dim != input.shape[0]:
             raise BaseException("Invalid dimensions")
-        return self._forward_pass(input, self._weights, self._bias)
+        return self._forward_pass(np.dot(input,
+                                         self._weights)+np.matlib.repmat(self._bias,
+                                                                         input.shape[1], 1))
 
 
 class Network:
