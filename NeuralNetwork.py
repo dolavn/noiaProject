@@ -1,16 +1,24 @@
 import numpy as np
 import numpy.matlib
+from itertools import product
 
 
 def relu_activation_fp(z):
     return np.maximum(z, 0)
 
 
-def relu_activation_gp(z):
-    return z
 
-
-
+def relu_activation_gp(x, W, b):
+    dg_elem = np.append(x, np.ones(x.shape[1]))
+    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
+    dg = []
+    for arg1 in argument:
+        for arg2 in arg1:
+            if arg2 > 0:
+                dg = np.append(dg, dg_elem)
+            else:
+                dg = np.append(dg, np.zeros(dg_elem.shape))
+    return dg
 
 
 def relu_activation_gx(x, W, b):
@@ -26,6 +34,13 @@ def relu_activation_gx(x, W, b):
     return dg
 
 
+def relu_activation_grad(z):
+    ans = z
+    for i, j in product(*(range(dim) for dim in z.shape)):
+        ans[i][j] = 1 if z[i][j] >=0 else 0
+    return ans
+
+
 def tanh_activation_fp(z):
     return np.tanh(z)
 
@@ -33,6 +48,7 @@ def tanh_activation_fp(z):
 
 def tanh_activation_grad(z):
     return 1 - np.tanh(z) ** 2
+
 
 def tanh_activation_gx(x, W, b):
     argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
@@ -134,7 +150,9 @@ class Layer:
     def forward_pass(self, input):
         if self._input_dim != input.shape[0]:
             raise BaseException("Invalid dimensions")
-        return self._forward_pass(input, self._weights, self._bias)
+        return self._forward_pass(np.dot(input,
+                                         self._weights)+np.matlib.repmat(self._bias,
+                                                                         input.shape[1], 1))
 
 
 class Network:
@@ -159,18 +177,7 @@ class Network:
 
 #TESTING
 
-    #Shlomit's testing code
-    a = np.array([1, 2, 1])
-    x = np.array([[-5, -2], [2, -2], [-1, 0], [-1, 1], [0, 2], [1, 4], [2, 8], [1, 2], [2, 4], [1, 9]]).T
-    #y = np.array([2, 3, 0, 1, 1, 2, 3, 0, 3, 2])
-    W = np.array([[0.2, 1], [0.1, 0], [1, 0], [0.1, 0]])
-    print(x.shape)
-    print(W.shape)
-    b = np.array([1, 1, 1, 1])
-    z= np.array([[1, -1, -1, 6],[1, -1, -1, 6]])
 
-    print(tanh_activation_grad(z))
-    exit()
 if __name__ == '__main__':
     X = np.array([[2, 3], [5, 2], [2, 3]]).T
     Y = np.array([[1, 0], [0, 1], [0, 1]])
@@ -184,7 +191,20 @@ if __name__ == '__main__':
 
     exit()
 
-
+    #Shlomit's testing code
+    a = np.array([1, 2, 1])
+    x = np.array([[-5, -2], [2, -2], [-1, 0], [-1, 1], [0, 2], [1, 4], [2, 8], [1, 2], [2, 4], [1, 9]]).T
+    #y = np.array([2, 3, 0, 1, 1, 2, 3, 0, 3, 2])
+    W = np.array([[0.2, 1], [0.1, 0], [1, 0], [0.1, 0]])
+    print(x.shape)
+    print(W.shape)
+    b = np.array([1, 1, 1, 1])
+    dgp=relu_activation_gp(x, W, b)
+    print(dgp[60:90])
+    dgx = relu_activation_gx(x, W, b)
+    print(dgx[16:24])
+    print(tanh_activation_gp(x, W, b))
+    print(tanh_activation_gx(x, W, b))
 
 
 
