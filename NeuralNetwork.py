@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.matlib
+from itertools import product
 
 
 def relu_activation_fp(x, W, b):
@@ -30,6 +31,13 @@ def relu_activation_gx(x, W, b):
             else:
                 dg = np.append(dg, np.zeros(dg_elem.shape))
     return dg
+
+
+def relu_activation_grad(z):
+    ans = z
+    for i, j in product(*(range(dim) for dim in z.shape)):
+        ans[i][j] = 1 if z[i][j] >=0 else 0
+    return ans
 
 
 def tanh_activation_fp(x, W, b):
