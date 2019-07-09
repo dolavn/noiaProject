@@ -7,12 +7,29 @@ def relu_activation_fp(x, W, b):
 
 
 def relu_activation_gp(x, W, b):
-    dg = np.append(W, np.ones(W.shape[1]))
-    return x
+    dg_elem = np.append(x, np.ones(x.shape[1]))
+    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
+    dg = []
+    for arg1 in argument:
+        for arg2 in arg1:
+            if arg2 > 0:
+                dg = np.append(dg, dg_elem)
+            else:
+                dg = np.append(dg, np.zeros(dg_elem.shape))
+    return dg
 
 
 def relu_activation_gx(x, W, b):
-    return x
+    dg_elem = W
+    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
+    dg = []
+    for arg1 in argument:
+        for arg2 in arg1:
+            if arg2 > 0:
+                dg = np.append(dg, dg_elem)
+            else:
+                dg = np.append(dg, np.zeros(dg_elem.shape))
+    return dg
 
 
 def tanh_activation_fp(x, W, b):
@@ -21,11 +38,14 @@ def tanh_activation_fp(x, W, b):
 
 
 def tanh_activation_gp(x, W, b):
-    return x
-
+    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
+    gp = np.concatenate((np.dot(x, (1 - np.tanh(argument) ** 2).T), (1 - np.tanh(argument) ** 2).T), axis=0)
+    return gp.flatten()
 
 def tanh_activation_gx(x, W, b):
-    return x
+    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
+    return np.dot(W.T, (1 - np.tanh(argument) ** 2)).flatten()
+
 
 
 def get_mu(w, x, b, num_of_labels):
@@ -166,6 +186,16 @@ if __name__ == '__main__':
     x = np.array([[-5, -2], [2, -2], [-1, 0], [-1, 1], [0, 2], [1, 4], [2, 8], [1, 2], [2, 4], [1, 9]]).T
     #y = np.array([2, 3, 0, 1, 1, 2, 3, 0, 3, 2])
     W = np.array([[0.2, 1], [0.1, 0], [1, 0], [0.1, 0]])
-    b = np.array([0, 1, 0, 1])
-    dg = np.append(W, np.ones(W.shape[1]))
-    print(dg)
+    print(x.shape)
+    print(W.shape)
+    b = np.array([1, 1, 1, 1])
+    dgp=relu_activation_gp(x, W, b)
+    print(dgp[60:90])
+    dgx = relu_activation_gx(x, W, b)
+    print(dgx[16:24])
+    print(tanh_activation_gp(x, W, b))
+    print(tanh_activation_gx(x, W, b))
+
+
+
+
