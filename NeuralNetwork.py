@@ -43,13 +43,13 @@ def create_c_matrix(y):
 
 
 def sm_activation_fp(x, W, b):
-    m = x.shape[0]
+    m = x.T.shape[0]
     num_of_labels = W.shape[0]
-    mu = get_mu(W, x, b, num_of_labels)
-    sum_all = sum([np.exp(np.dot(x.T, W[i])+b[i]-mu) for i in range(num_of_labels)])
-    mu_mat = np.matlib.repmat(mu, m, 1).T
-    ans = np.dot(x.T, W)+b-mu_mat
-    ans = np.exp(ans) / np.matlib.repmat(sum_all, m, 1).T
+    ans = np.dot(x.T, W)+np.matlib.repmat(b, m, 1)
+    for i in range(m):
+        ans[i] = ans[i] - max(ans[i])
+        ans[i] = np.exp(ans[i])
+        ans[i] = ans[i]/sum(ans[i])
     return ans
 
 
@@ -149,11 +149,12 @@ class Network:
 
 
 if __name__ == '__main__':
-    X = np.array([[1, 2], [2, 2], [2, 3]]).T
+    X = np.array([[2, 3], [5, 2], [2, 3]]).T
     Y = np.array([[1, 0], [0, 1], [0, 1]])
-    W = np.array([[1, 0], [0, 1]])
-    b = np.array([1, 1])
+    W = np.array([[0.5, 0.5], [0, 1]])
+    b = np.array([0, 0])
     g = sm_activation_gx(X, W, Y, b)
+    print(np.dot(X.T, W))
     print(g)
     print(sm_activation_fp(X, W, b))
     n = Network()
