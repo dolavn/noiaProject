@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.matlib
 import matplotlib.pyplot as plt
+from scipy.linalg import block_diag
 from itertools import product
 
 
@@ -44,7 +45,6 @@ def relu_activation_grad(z):
 
 def tanh_activation_fp(z):
     return np.tanh(z)
-
 
 
 def tanh_activation_grad(z):
@@ -151,6 +151,7 @@ class Layer:
         self._z = None
         self._a = None
         self._delta = None
+        self._g = None
         self._softmax_layer = softmax_layer
 
 
@@ -178,20 +179,31 @@ class Layer:
         if not next_layer:
             raise BaseException("No next layer")
         else:
-            self._delta = np.dot(self._weights, next_layer.get_delta())
-            self._delta = np.dot(self._delta, self._gradient(self._z))
+            all_grads_p = []
+            all_grads_x = []
+            for i in range(self._x.shape[1]):
+                curr_sigma = self._gradient(np.atleast_2d(self._z[i]))
+                diag = np.diag(curr_sigma[0])
+                t = np.tensordot(self._x.T[i], np.identity(self._weights.shape[1]), axes=0)
+                xt = np.dot(diag, self._weights.T)
+                t = t.reshape(4, 12)
+                all_grads_p.append(np.dot(diag, t))
+                all_grads_x.append(xt)
+            all_grads_p = np.array(all_grads_p).reshape(20, 12)
+            all_grads_x = block_diag(*all_grads_x)
+            self._delta = np.dot(all_grads_x.T, next_layer.get_delta())
+            self._g = np.dot(all_grads_p.T, next_layer.get_delta()).reshape(*self._weights.shape)
 
     def calc_softmax_grad(self, labels, alpha):
         if not self._softmax_layer:
             raise BaseException("Can only be performed on a softmax layer")
-        self._delta = sm_activation_gx(self._x, self._weights, labels, self._bias)
+        self._delta = sm_activation_gx(self._x, self._weights, labels, self._bias).flatten()
         w_grad, b_grad = self._gradient(self._x, self._weights, self._bias, labels)
         self._weights = self._weights - alpha*w_grad.T
         self._bias = self._bias - alpha*b_grad
 
-
     def update_weights(self, alpha):
-        self._weights = self._weights - alpha*self._delta
+        self._weights = self._weights + alpha*self._g
 
 
 class Network:
