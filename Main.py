@@ -4,6 +4,7 @@ import scipy.io
 from Optimizer import stochastic_gradient_descent
 from itertools import product
 
+
 def get_mu(w, x, b, num_of_labels):
     mus = [np.dot(x.T, w[i])+b[i] for i in range(num_of_labels)]
     mu = np.array([max([m[i] for m in mus]) for i in range(mus[0].shape[0])])
@@ -14,11 +15,12 @@ def get_mu(w, x, b, num_of_labels):
 def create_c_vecs(y, num_of_labels):
     ans = []
     for val in range(num_of_labels):
-        ans.append([1 if elem == val else 0 for elem in y])
+        ans.append([1 if elem[val] == 1 else 0 for elem in y])
     return np.array(ans)
 
 
-def softmax_obj(x, y, num_of_labels, w, b):
+def softmax_obj(x, y, w, b):
+    num_of_labels = y.shape[1]
     c = create_c_vecs(y, num_of_labels)
     mu = get_mu(w, x, b, num_of_labels)
     sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(num_of_labels)])
@@ -26,7 +28,8 @@ def softmax_obj(x, y, num_of_labels, w, b):
     return val
 
 
-def softmax_grad(x, y, num_of_labels, w, b):
+def softmax_grad(x, y, w, b):
+    num_of_labels = y.shape[1]
     c = create_c_vecs(y, num_of_labels)
     mu = get_mu(w, x, b, num_of_labels)
     sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(num_of_labels)])
@@ -51,6 +54,7 @@ def gradient_test(f, g, dim):
     """
     x = np.random.rand(*dim)
     d = np.random.rand(*dim)
+    d = d/np.linalg.norm(d)
     lins = []
     quads = []
     epsilons = np.linspace(0, 0.5, 200)
@@ -84,47 +88,39 @@ training = mat['Yt']
 
 x = training
 y = labels
-y2 = []
-for elem in y.T:
-    for i in range(len(elem)):
-        if elem[i] == 1:
-            y2.append(i)
-            break
-y = y2
-
-w = np.random.rand(2, 2)
-b = np.random.rand(2)
-
-max_label = max(y)+1
+w = np.random.rand(x.shape[0], y.shape[0])
+b = np.random.rand(y.shape[0])
 
 
 def obj(wb, indices):
-    num_of_labels = max(y)+1
+    num_of_labels = y.shape[0]
     x_batch = np.concatenate([x.T[i] for i in indices]).reshape(*x.T[0].shape, len(indices))
-    y_batch = np.array([y[i] for i in indices])
-    w_range = x.shape[0]*max_label
-    curr_w = wb[:w_range].reshape(max_label, x.shape[0])
+    y_batch = np.array([y.T[i] for i in indices])
+    w_range = x.shape[0]*num_of_labels
+    curr_w = wb[:w_range].reshape(num_of_labels, x.shape[0])
     curr_b = wb[w_range:]
-    return softmax_obj(x_batch, y_batch, num_of_labels, curr_w, curr_b)
+    return softmax_obj(x_batch, y_batch, curr_w, curr_b)
 
 
 def grad(wb, indices):
-    num_of_labels = max(y)+1
+    num_of_labels = y.shape[0]
     x_batch = np.concatenate([x.T[i] for i in indices]).reshape(*x.T[0].shape, len(indices))
-    y_batch = np.array([y[i] for i in indices])
-    w_range = x.shape[0]*max_label
-    curr_w = wb[:w_range].reshape(max_label, x.shape[0])
+    y_batch = np.array([y.T[i] for i in indices])
+    w_range = x.shape[0]*num_of_labels
+    curr_w = wb[:w_range].reshape(num_of_labels, x.shape[0])
     curr_b = wb[w_range:]
-    wgrad, bgrad = softmax_grad(x_batch, y_batch, num_of_labels, curr_w, curr_b)
+    wgrad, bgrad = softmax_grad(x_batch, y_batch, curr_w, curr_b)
     #print(wgrad)
     #print(bgrad)
     return np.concatenate((wgrad.flatten(), bgrad.T), axis=None)
 
 
+num_of_labels = y.shape[0]
 wb = np.concatenate((w.flatten(), b.T), axis=None)
-w, obj_train = stochastic_gradient_descent(len(x.T), max(y)+1, obj, grad, wb.shape, batch_size=100)
-w_range = x.shape[0] * max_label
-curr_w = wb[:w_range].reshape(max_label, x.shape[0])
+w, obj_train = stochastic_gradient_descent(len(x.T), num_of_labels,
+                                           obj, grad, wb.shape, batch_size=100)
+w_range = x.shape[0] * num_of_labels
+curr_w = wb[:w_range].reshape(num_of_labels, x.shape[0])
 w = curr_w
 plt.plot(range(len(obj_train)), obj_train)
 plt.show()

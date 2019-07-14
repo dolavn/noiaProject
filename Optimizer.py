@@ -41,12 +41,12 @@ def create_batches(data_size, batch_size):
         last_ind = curr_ind
         curr_ind = min(curr_ind+batch_size, data_size)
         batches.append(indices[last_ind: curr_ind])
-    print(batches)
+    #print(batches)
     return batches
 
 
 def stochastic_gradient_descent(data_size, num_of_labels, objective, gradient, input_shape,
-                                batch_size=1):
+                                batch_size=100):
     """
     Performs a general one point iterative method on a given objective function.
     :param objective: The objective function
