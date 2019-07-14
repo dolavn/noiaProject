@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.matlib
+import matplotlib.pyplot as plt
 from itertools import product
 
 
@@ -70,31 +71,14 @@ def create_c_matrix(y):
     return np.array(c_vec)
 
 
-def sm_activation_fp(x, W, b):
-    m = x.T.shape[0]
-    num_of_labels = W.shape[0]
-    ans = np.dot(x.T, W)+np.matlib.repmat(b, m, 1)
+def sm_activation_fp(z):
+    m = z.T.shape[1]
+    ans = z
     for i in range(m):
         ans[i] = ans[i] - max(ans[i])
         ans[i] = np.exp(ans[i])
         ans[i] = ans[i]/sum(ans[i])
     return ans
-
-
-def sm_activation_gp(x, w, b, y):
-    c = create_c_matrix(y)
-    num_of_labels = y.shape[1]
-    mu = get_mu(w, x, b, num_of_labels)
-    sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(num_of_labels)])
-    cis = [(np.exp(np.dot(x.T, w[i])+b[i]-mu)/sum_all)-c[i] for i in range(num_of_labels)]
-    cis = [1/len(x)*np.dot(x, elem) for elem in cis]
-    cis = [elem.reshape(1, -1) for elem in cis]
-    ans = np.concatenate(cis, axis=0)
-    bs = [np.exp(np.dot(x.T, w[i]) + b[i]-mu)/sum_all for i in range(num_of_labels)]
-    bs = [np.dot(curr, np.ones(len(curr))) for curr in bs]
-    bs = [curr - sum(c[i]) for i, curr in enumerate(bs)]
-    bs = np.array([(1/len(x))*curr for curr in bs])
-    return np.concatenate((ans.flatten, bs))
 
 
 def get_shapes(x, W, y, b):
@@ -111,10 +95,28 @@ def get_shapes(x, W, y, b):
     return m, n, l
 
 
+def sm_activation_gp(x, w, b, y):
+    m, n, l = get_shapes(x, w, y, b)
+    print('m:{}\n n:{}\n l:{}'.format(m, n, l))
+    c = create_c_matrix(y)
+    #mu = get_mu(w, x, b, l)
+    mu = 0
+    sum_all = sum([np.exp(np.dot(w.T[i].T, x)+b[i]-mu) for i in range(l)])
+    cis = [(np.exp(np.dot(w.T[i].T, x)+b[i]-mu)/sum_all)-c[i] for i in range(l)]
+    cis = [1/len(x)*np.dot(x, elem) for elem in cis]
+    cis = [elem.reshape(1, -1) for elem in cis]
+    ans = np.concatenate(cis, axis=0)
+    bs = [np.exp(np.dot(w.T[i].T, x)+b[i]-mu)/sum_all for i in range(l)]
+    bs = [np.dot(curr, np.ones(len(curr))) for curr in bs]
+    bs = [curr - sum(c[i]) for i, curr in enumerate(bs)]
+    bs = np.array([(1/len(x))*curr for curr in bs])
+    return ans, bs
+
+
 def sm_activation_gx(x, W, y, b):
     m, n, l = get_shapes(x, W, y, b)
     c = create_c_matrix(y)
-    v_sum = sum([np.exp(np.dot(W[i].T, x)) for i in range(n)])
+    v_sum = sum([np.exp(np.dot(W.T[i].T, x)) for i in range(l)])
     v_sum = np.matlib.repmat(v_sum, l, 1)
     ans = np.dot(W.T, x)/v_sum
     ans = ans - c
@@ -123,23 +125,34 @@ def sm_activation_gx(x, W, y, b):
     return ans
 
 
-RELU_ACTIVATION = (relu_activation_fp, relu_activation_gp, relu_activation_gx)
-TANH_ACTIVATION = (tanh_activation_fp, tanh_activation_gp, tanh_activation_gx)
-SOFTMAX_ACTIVATION = (sm_activation_fp, sm_activation_gp, sm_activation_gx)
+RELU_ACTIVATION = (relu_activation_fp, relu_activation_grad)
+TANH_ACTIVATION = (tanh_activation_fp, tanh_activation_grad)
+SOFTMAX_ACTIVATION = (sm_activation_fp, sm_activation_gp)
 
 ACTIVATION_FUNCTIONS = [RELU_ACTIVATION, TANH_ACTIVATION]
 
 
 class Layer:
 
-    def __init__(self, input_dim, output_dim, activation):
-        if activation not in ACTIVATION_FUNCTIONS:
+    def __init__(self, input_dim, output_dim, activation, softmax_layer=False):
+        if softmax_layer and activation is not None:
+            raise BaseException("Can't give another activation function to softmax layer")
+        if activation is not None and activation not in ACTIVATION_FUNCTIONS:
             raise BaseException("Invalid activation function")
-        self._forward_pass, self_gradient_params, self._gradient_x = activation
+        if softmax_layer:
+            self._forward_pass, self._gradient = SOFTMAX_ACTIVATION
+        if activation:
+            self._forward_pass, self._gradient = activation
         self._input_dim = input_dim
         self._output_dim = output_dim
         self._weights = np.random.rand(input_dim, output_dim)
         self._bias = np.random.rand(output_dim)
+        self._x = None
+        self._z = None
+        self._a = None
+        self._delta = None
+        self._softmax_layer = softmax_layer
+
 
     def get_input_dim(self):
         return self._input_dim
@@ -147,12 +160,38 @@ class Layer:
     def get_output_dim(self):
         return self._output_dim
 
+    def get_delta(self):
+        return self._delta
+
     def forward_pass(self, input):
         if self._input_dim != input.shape[0]:
+            print('received:{}\nactual:{}'.format(input.shape[0], self._input_dim))
             raise BaseException("Invalid dimensions")
-        return self._forward_pass(np.dot(input,
-                                         self._weights)+np.matlib.repmat(self._bias,
-                                                                         input.shape[1], 1))
+        self._x = input
+        self._z = np.dot(input.T, self._weights)+np.matlib.repmat(self._bias, input.shape[1], 1)
+        self._a = self._forward_pass(self._z)
+        return self._a
+
+    def back_propogation(self, next_layer=None):
+        if self._softmax_layer:
+            raise BaseException("Can not be performed on a softmax layer")
+        if not next_layer:
+            raise BaseException("No next layer")
+        else:
+            self._delta = np.dot(self._weights, next_layer.get_delta())
+            self._delta = np.dot(self._delta, self._gradient(self._z))
+
+    def calc_softmax_grad(self, labels, alpha):
+        if not self._softmax_layer:
+            raise BaseException("Can only be performed on a softmax layer")
+        self._delta = sm_activation_gx(self._x, self._weights, labels, self._bias)
+        w_grad, b_grad = self._gradient(self._x, self._weights, self._bias, labels)
+        self._weights = self._weights - alpha*w_grad.T
+        self._bias = self._bias - alpha*b_grad
+
+
+    def update_weights(self, alpha):
+        self._weights = self._weights - alpha*self._delta
 
 
 class Network:
@@ -173,21 +212,46 @@ class Network:
     def forward_pass(self, input):
         if self._input_dim != input.shape[0]:
             raise BaseException("Invalid dimensions")
+        curr_input = input
+        for layer in self._layers:
+            curr_input = layer.forward_pass(curr_input).T
+        return curr_input
 
+    def back_propogation(self, labels, alpha):
+        self._layers[-1].calc_softmax_grad(labels, alpha)
+        indices = [i for i in range(len(self._layers)-1)]
+        for ind in indices[::-1]:
+            next_layer = self._layers[ind+1]
+            curr_layer = self._layers[ind]
+            curr_layer.back_propogation(next_layer)
+            #curr_layer.update_weights(alpha)
+
+    def calc_error(self, x, y):
+        output = self.forward_pass(x).T
+        return np.linalg.norm(y-output)
 
 #TESTING
 
 
 if __name__ == '__main__':
-    X = np.array([[2, 3], [5, 2], [2, 3]]).T
-    Y = np.array([[1, 0], [0, 1], [0, 1]])
-    W = np.array([[0.5, 0.5], [0, 1]])
+    X = np.array([[2, 3, 1], [1, 5, 2], [4, 2, 3], [1, 4, 1], [2, 1, 4]]).T
+    Y = np.array([[1, 0], [0, 1], [0, 1], [1, 0], [0, 1]])
+    W = np.array([[0.5, 0.5, 1], [0.2, 0, 1]]).T
     b = np.array([0, 0])
     g = sm_activation_gx(X, W, Y, b)
-    print(np.dot(X.T, W))
-    print(g)
-    print(sm_activation_fp(X, W, b))
     n = Network()
+    n.add_layer(Layer(3, 4, RELU_ACTIVATION))
+    n.add_layer(Layer(4, 2, None, softmax_layer=True))
+    n.forward_pass(X)
+    errors = []
+    alpha = 0.1
+    for i in range(100):
+        n.back_propogation(Y, alpha)
+        alpha = alpha - 0.001
+        errors.append(n.calc_error(X, Y))
+    plt.plot(range(len(errors)), errors)
+    plt.show()
+    print(n.forward_pass(X))
 
     exit()
 
