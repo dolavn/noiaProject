@@ -152,6 +152,7 @@ class Layer:
         self._a = None
         self._delta = None
         self._g = None
+        self._b = None
         self._batch_size = None
         self._softmax_layer = softmax_layer
 
@@ -183,6 +184,7 @@ class Layer:
         else:
             all_grads_p = []
             all_grads_x = []
+            all_diags = []
             for i in range(self._batch_size):
                 curr_sigma = self._gradient(np.atleast_2d(self._z[i]))[0]
                 diag = np.diag(curr_sigma)
@@ -191,11 +193,15 @@ class Layer:
                 t = t.reshape(self._output_dim, self._input_dim*self._output_dim)
                 all_grads_p.append(np.dot(diag, t))
                 all_grads_x.append(xt)
+                all_diags.append(diag)
             all_grads_p = np.array(all_grads_p).reshape(self._batch_size*self._output_dim,
                                                         self._input_dim*self._output_dim)
             all_grads_x = block_diag(*all_grads_x)
+            all_diags = np.array(all_diags).reshape(self._batch_size*self._output_dim,
+                                                    self._output_dim)
             self._delta = np.dot(all_grads_x.T, next_layer.get_delta())
             self._g = np.dot(all_grads_p.T, next_layer.get_delta()).reshape(*self._weights.shape)
+            self._b = np.dot(all_diags.T, next_layer.get_delta()).reshape(*self._bias.shape)
 
     def calc_softmax_grad(self, labels, alpha):
         if not self._softmax_layer:
@@ -207,6 +213,7 @@ class Layer:
 
     def update_weights(self, alpha):
         self._weights = self._weights + alpha*self._g
+        self._bias = self._bias + alpha*self._b
 
 
 class Network:
@@ -263,22 +270,22 @@ if __name__ == '__main__':
     #print(x.shape)
     #print(y.shape)
     n = Network()
-    n.add_layer(Layer(2, 10, RELU_ACTIVATION))
-    n.add_layer(Layer(10, 10, RELU_ACTIVATION))
+    n.add_layer(Layer(2, 20, RELU_ACTIVATION))
+    n.add_layer(Layer(20, 10, RELU_ACTIVATION))
     n.add_layer(Layer(10, 2, None, softmax_layer=True))
     errors = []
-    alpha = 0.25
+    alpha = 0.1
     batches = np.random.permutation(range(y.shape[1]))
     batch_size = 100
     curr_ind = 0
-    for i in range(150):
+    for i in range(100):
         curr_batch = batches[curr_ind: curr_ind+batch_size]
         curr_ind = curr_ind+batch_size
         batch_x = np.array([x.T[ind] for ind in curr_batch]).T
         batch_y = np.array([y.T[ind] for ind in curr_batch]).T
         n.forward_pass(batch_x)
         n.back_propagation(batch_y, alpha)
-        alpha = alpha*0.99
+        alpha = alpha*0.999
         errors.append(n.calc_error(x, y))
     #plt.plot(range(len(errors)), errors)
     #plt.show()
@@ -293,7 +300,7 @@ if __name__ == '__main__':
         vec = np.atleast_2d(np.array([x_i, y_i]))
         label = n.forward_pass(vec.T)
         image[i1][i2] = label[0]
-    plt.imshow(image, extent=[-1.5, 1.5, -1.5, 1.5], alpha=0.5)
+    plt.imshow(image, extent=[-1.5, 1.5, -1.5, 1.5])
     coord_x_pos = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
     coord_y_pos = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
     coord_x_neg = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
