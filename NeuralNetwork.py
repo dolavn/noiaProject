@@ -175,7 +175,7 @@ class Layer:
         self._a = self._forward_pass(self._z)
         return self._a
 
-    def back_propogation(self, next_layer=None):
+    def back_propagation(self, next_layer=None):
         if self._softmax_layer:
             raise BaseException("Can not be performed on a softmax layer")
         if not next_layer:
@@ -233,13 +233,13 @@ class Network:
             curr_input = layer.forward_pass(curr_input).T
         return curr_input
 
-    def back_propogation(self, labels, alpha):
+    def back_propagation(self, labels, alpha):
         self._layers[-1].calc_softmax_grad(labels, alpha)
         indices = [i for i in range(len(self._layers)-1)]
         for ind in indices[::-1]:
             next_layer = self._layers[ind+1]
             curr_layer = self._layers[ind]
-            curr_layer.back_propogation(next_layer)
+            curr_layer.back_propagation(next_layer)
             curr_layer.update_weights(alpha)
 
     def calc_error(self, x, y):
@@ -277,7 +277,7 @@ if __name__ == '__main__':
         batch_x = np.array([x.T[ind] for ind in curr_batch]).T
         batch_y = np.array([y.T[ind] for ind in curr_batch]).T
         n.forward_pass(batch_x)
-        n.back_propogation(batch_y, alpha)
+        n.back_propagation(batch_y, alpha)
         alpha = alpha*0.99
         errors.append(n.calc_error(x, y))
     #plt.plot(range(len(errors)), errors)
