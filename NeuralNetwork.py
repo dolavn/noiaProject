@@ -287,6 +287,7 @@ if __name__ == '__main__':
     training = mat['Yt']
     x = training
     y = labels
+    """
     t = 50
     x = np.zeros((t**2, 2))
     y = np.zeros((t**2, 2))
@@ -302,23 +303,25 @@ if __name__ == '__main__':
         curr = curr + 1
     x = x.T
     y = y.T
+    """
     n = Network()
-    n.add_layer(Layer(2, 100, RELU_ACTIVATION))
-    n.add_layer(Layer(100, 2, None, softmax_layer=True))
+    n.add_layer(Layer(2, 5, RELU_ACTIVATION))
+    n.add_layer(Layer(5, 2, None, softmax_layer=True))
     errors = []
-    alpha = 0.1
+    alpha = 0.05
     batches = np.random.permutation(range(y.shape[1]))
-    batch_size = 10
+    batch_size = 100
     curr_ind = 0
+    print(n.calc_error(x, y))
     for i in range(100):
         curr_batch = batches[curr_ind: curr_ind+batch_size]
         curr_ind = curr_ind+batch_size
         batch_x = np.array([x.T[ind] for ind in curr_batch]).T
         batch_y = np.array([y.T[ind] for ind in curr_batch]).T
         g = n.get_grad(batch_x, batch_y)
-        g = g * (-alpha)
-        n.inc_weights(g)
-        alpha = alpha*0.999
+        g = g*alpha
+        n.inc_weights(-g)
+        #alpha = alpha*0.999
         errors.append(n.calc_error(x, y))
     #plt.plot(range(len(errors)), errors)
     #plt.show()
@@ -338,7 +341,7 @@ if __name__ == '__main__':
     coord_y_pos = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
     coord_x_neg = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
     coord_y_neg = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
-    #plt.scatter(coord_x_pos, coord_y_pos, alpha=0.2)
-    #plt.scatter(coord_x_neg, coord_y_neg, alpha=0.2)
+    plt.scatter(coord_x_pos, coord_y_pos, alpha=0.2)
+    plt.scatter(coord_x_neg, coord_y_neg, alpha=0.2)
     plt.show()
     exit()
