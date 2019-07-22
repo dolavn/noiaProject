@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io
 from Optimizer import stochastic_gradient_descent
+from NeuralNetwork import Network, TANH_ACTIVATION, RELU_ACTIVATION, Layer
 from itertools import product
 
 
@@ -115,6 +116,69 @@ def grad(wb, indices):
     return np.concatenate((wgrad.flatten(), bgrad.T), axis=None)
 
 
+def jacobian_test(f, j, dim):
+    """
+    Performs the jacobian test on f
+    :param f: A function f
+    :param j: A method that calculates M*v where v is a vector and M is the Jacobian
+    :param dim: The dimensions of the input to f
+    :return: None
+    """
+    x = np.random.rand(dim)
+    d = np.random.rand(dim)
+    lins = []
+    quads = []
+    epsilons = np.linspace(0, 0.1, 100)
+    for epsilon in epsilons:
+        lin = np.linalg.norm(f(x+epsilon*d)-f(x))
+        quad = np.linalg.norm(f(x+epsilon*d)-f(x)-j(x, epsilon*d))
+        lins.append(lin)
+        quads.append(quad)
+    fig1, ax1 = plt.subplots()
+    ax1.set_title('Jacobian test')
+    plt.plot(epsilons, lins)
+    plt.plot(epsilons, quads)
+    plt.legend(['$|f(x)+\\epsilon\\cdot d)-f(x)|$',
+                '$|f(x+\\epsilon\\cdot d)-f(x)-JacMV(x,\\epsilon d)|$'])
+    plt.savefig('jacobian_test.png')
+
+t = 50
+x = np.zeros((t**2, 2))
+y = np.zeros((t**2, 2))
+curr = 0
+for i1, i2 in product(np.linspace(-1.5, 1.5, t), np.linspace(-1.5, 1.5, t)):
+    x[curr][0] = i1
+    x[curr][1] = i2
+    if i2 < 0:
+        y[curr][1] = 1
+    else:
+        y[curr][0] = 1
+    curr = curr + 1
+x = x.T
+y = y.T
+n = Network()
+n.add_layer(Layer(2, 10, RELU_ACTIVATION))
+n.add_layer(Layer(10, 2, None, softmax_layer=True))
+curr_batch = [0, 1]
+batch_x = np.array([x.T[ind] for ind in curr_batch]).T
+batch_y = np.array([y.T[ind] for ind in curr_batch]).T
+l = n.get_layer(0)
+
+
+def f(inp):
+    l.set_weights(inp)
+    return l.forward_pass(batch_x).flatten()
+
+
+def jacob(inp, v):
+    l.set_weights(inp)
+    l.forward_pass(batch_x)
+    l.calc_jacobian()
+    return np.dot(l.get_jacobian(), v)
+
+
+jacobian_test(f, jacob, 20)
+exit()
 num_of_labels = y.shape[0]
 wb = np.concatenate((w.flatten(), b.T), axis=None)
 w, obj_train = stochastic_gradient_descent(len(x.T), num_of_labels,
