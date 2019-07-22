@@ -10,36 +10,10 @@ def relu_activation_fp(z):
     return np.maximum(z, 0)
 
 
-def relu_activation_gp(x, W, b):
-    dg_elem = np.append(x, np.ones(x.shape[1]))
-    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
-    dg = []
-    for arg1 in argument:
-        for arg2 in arg1:
-            if arg2 > 0:
-                dg = np.append(dg, dg_elem)
-            else:
-                dg = np.append(dg, np.zeros(dg_elem.shape))
-    return dg
-
-
-def relu_activation_gx(x, W, b):
-    dg_elem = W
-    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
-    dg = []
-    for arg1 in argument:
-        for arg2 in arg1:
-            if arg2 > 0:
-                dg = np.append(dg, dg_elem)
-            else:
-                dg = np.append(dg, np.zeros(dg_elem.shape))
-    return dg
-
-
 def relu_activation_grad(z):
     ans = z
     for i, j in product(*(range(dim) for dim in z.shape)):
-        ans[i][j] = 1 if z[i][j] >=0 else 0
+        ans[i][j] = 1 if z[i][j] >= 0 else 0
     return ans
 
 
@@ -49,12 +23,6 @@ def tanh_activation_fp(z):
 
 def tanh_activation_grad(z):
     return 1 - np.tanh(z) ** 2
-
-
-def tanh_activation_gx(x, W, b):
-    argument = np.dot(W, x) + (np.matlib.repmat(b, x.shape[1], 1)).T
-    return np.dot(W.T, (1 - np.tanh(argument) ** 2)).flatten()
-
 
 
 def get_mu(w, x, b, num_of_labels):
@@ -201,7 +169,7 @@ class Layer:
             diag = np.diag(curr_sigma)
             t = np.tensordot(self._x.T[i], np.identity(self._output_dim), axes=0)
             xt = np.dot(diag, self._weights.T)
-            t = t.reshape(self._output_dim, self._input_dim * self._output_dim)
+            t = t.reshape(self._input_dim * self._output_dim, self._output_dim).T
             all_grads_p.append(np.dot(diag, t))
             all_grads_x.append(xt)
             all_diags.append(diag)
@@ -212,15 +180,12 @@ class Layer:
                                                 self._output_dim)
         self._jacobian = all_grads_p
 
-
     def calc_softmax_grad(self, labels):
         if not self._softmax_layer:
             raise BaseException("Can only be performed on a softmax layer")
         self._delta = sm_activation_gx(self._x, self._weights, labels, self._bias).flatten()
         w_grad, b_grad = self._gradient(self._x, self._weights, self._bias, labels)
         self._theta_grad = np.concatenate((w_grad.flatten(), b_grad))
-        #self._weights = self._weights - alpha*w_grad.T
-        #self._bias = self._bias - alpha*b_grad
 
     def set_weights(self, weights):
         update_w = np.array(weights[: self._input_dim*self._output_dim]).reshape(self._input_dim,
@@ -338,8 +303,8 @@ if __name__ == '__main__':
     x = x.T
     y = y.T
     n = Network()
-    n.add_layer(Layer(2, 10, RELU_ACTIVATION))
-    n.add_layer(Layer(10, 2, None, softmax_layer=True))
+    n.add_layer(Layer(2, 100, RELU_ACTIVATION))
+    n.add_layer(Layer(100, 2, None, softmax_layer=True))
     errors = []
     alpha = 0.1
     batches = np.random.permutation(range(y.shape[1]))
@@ -377,22 +342,3 @@ if __name__ == '__main__':
     #plt.scatter(coord_x_neg, coord_y_neg, alpha=0.2)
     plt.show()
     exit()
-
-    #Shlomit's testing code
-    a = np.array([1, 2, 1])
-    x = np.array([[-5, -2], [2, -2], [-1, 0], [-1, 1], [0, 2], [1, 4], [2, 8], [1, 2], [2, 4], [1, 9]]).T
-    #y = np.array([2, 3, 0, 1, 1, 2, 3, 0, 3, 2])
-    W = np.array([[0.2, 1], [0.1, 0], [1, 0], [0.1, 0]])
-    print(x.shape)
-    print(W.shape)
-    b = np.array([1, 1, 1, 1])
-    dgp=relu_activation_gp(x, W, b)
-    print(dgp[60:90])
-    dgx = relu_activation_gx(x, W, b)
-    print(dgx[16:24])
-    print(tanh_activation_gp(x, W, b))
-    print(tanh_activation_gx(x, W, b))
-
-
-
-

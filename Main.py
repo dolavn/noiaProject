@@ -126,14 +126,15 @@ def jacobian_test(f, j, dim):
     """
     x = np.random.rand(dim)
     d = np.random.rand(dim)
+    d = d/np.linalg.norm(d)
     lins = []
     quads = []
-    epsilons = np.linspace(0, 0.1, 100)
+    epsilons = np.linspace(0, 0.5, 100)
     for epsilon in epsilons:
         lin = np.linalg.norm(f(x+epsilon*d)-f(x))
         quad = np.linalg.norm(f(x+epsilon*d)-f(x)-j(x, epsilon*d))
         lins.append(lin)
-        quads.append(quad)
+        quads.append(quad*10)
     fig1, ax1 = plt.subplots()
     ax1.set_title('Jacobian test')
     plt.plot(epsilons, lins)
@@ -142,24 +143,26 @@ def jacobian_test(f, j, dim):
                 '$|f(x+\\epsilon\\cdot d)-f(x)-JacMV(x,\\epsilon d)|$'])
     plt.savefig('jacobian_test.png')
 
-t = 50
-x = np.zeros((t**2, 2))
-y = np.zeros((t**2, 2))
-curr = 0
-for i1, i2 in product(np.linspace(-1.5, 1.5, t), np.linspace(-1.5, 1.5, t)):
-    x[curr][0] = i1
-    x[curr][1] = i2
-    if i2 < 0:
-        y[curr][1] = 1
-    else:
-        y[curr][0] = 1
-    curr = curr + 1
-x = x.T
-y = y.T
+
+"""
+x = np.array([[1, 2, 3], [4, 5, 6]])
+i = np.identity(3)
+t1 = np.tensordot(x[0], i, axes=0).reshape(9, 3).T
+t2 = np.tensordot(x[1], i, axes=0).reshape(9, 3).T
+t = np.concatenate((t1, t2))
+print(t1)
+print(t1.shape)
+exit()
+"""
+
+input_dim = 2
+output_dim = 20
+x = np.random.random((100, input_dim)).T
+y = np.random.random((100, 2)).T
 n = Network()
-n.add_layer(Layer(2, 10, RELU_ACTIVATION))
-n.add_layer(Layer(10, 2, None, softmax_layer=True))
-curr_batch = [0, 1]
+n.add_layer(Layer(input_dim, output_dim, TANH_ACTIVATION))
+n.add_layer(Layer(output_dim, 2, None, softmax_layer=True))
+curr_batch = [0]
 batch_x = np.array([x.T[ind] for ind in curr_batch]).T
 batch_y = np.array([y.T[ind] for ind in curr_batch]).T
 l = n.get_layer(0)
@@ -177,7 +180,7 @@ def jacob(inp, v):
     return np.dot(l.get_jacobian(), v)
 
 
-jacobian_test(f, jacob, 20)
+jacobian_test(f, jacob, input_dim*output_dim)
 exit()
 num_of_labels = y.shape[0]
 wb = np.concatenate((w.flatten(), b.T), axis=None)
