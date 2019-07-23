@@ -26,8 +26,10 @@ def tanh_activation_grad(z):
 
 
 def get_mu(w, x, b, num_of_labels):
+    return 0
     mus = [np.dot(x.T, w[i])+b[i] for i in range(num_of_labels)]
     mu = np.array([max([m[i] for m in mus]) for i in range(mus[0].shape[0])])
+    return 0
     return mu
 
 
@@ -55,6 +57,10 @@ def get_shapes(x, W, y, b):
         raise BaseException("Dimensions incorrect")
     l = W.shape[1]
     if y.shape[1] != m:
+        print(y.shape)
+        print(x.shape)
+        print(W.shape)
+        print(b.shape)
         raise BaseException("Dimensions incorrect")
     if y.shape[0] != l:
         raise BaseException("Dimensions incorrect")
@@ -67,8 +73,7 @@ def sm_activation_gp(x, w, b, y):
     m, n, l = get_shapes(x, w, y, b)
     #print('m:{}\n n:{}\n l:{}'.format(m, n, l))
     c = create_c_matrix(y)
-    #mu = get_mu(w, x, b, l)
-    mu = 0
+    mu = get_mu(w, x, b, l)
     sum_all = sum([np.exp(np.dot(w.T[i].T, x)+b[i]-mu) for i in range(l)])
     cis = [(np.exp(np.dot(w.T[i].T, x)+b[i]-mu)/sum_all)-c[i] for i in range(l)]
     cis = [1/len(x)*np.dot(x, elem) for elem in cis]
@@ -93,6 +98,15 @@ def sm_activation_gx(x, W, y, b):
     return ans
 
 
+def softmax_obj(x, y, w, b):
+    m, n, l = get_shapes(x, w, y, b)
+    c = create_c_matrix(y)
+    mu = get_mu(w, x, b, l)
+    sum_all = sum([np.exp(np.dot(w.T[i].T, x)+b[i]-mu) for i in range(l)])
+    val = -sum([np.dot(c[i].T, np.log(np.exp(np.dot(w.T[i].T, x)+b[i]-mu)/sum_all)) for i in range(l)])/len(x)
+    return val
+
+
 RELU_ACTIVATION = (relu_activation_fp, relu_activation_grad)
 TANH_ACTIVATION = (tanh_activation_fp, tanh_activation_grad)
 SOFTMAX_ACTIVATION = (sm_activation_fp, sm_activation_gp)
@@ -113,7 +127,7 @@ class Layer:
             self._forward_pass, self._gradient = activation
         self._input_dim = input_dim
         self._output_dim = output_dim
-        self._weights = np.random.rand(input_dim, output_dim)
+        self._weights = np.random.rand(output_dim, input_dim)
         self._bias = np.random.rand(output_dim)
         self._x = None
         self._z = None
@@ -142,9 +156,10 @@ class Layer:
         if self._input_dim != input.shape[0]:
             print('received:{}\nactual:{}'.format(input.shape[0], self._input_dim))
             raise BaseException("Invalid dimensions")
-        self._x = input
-        self._batch_size = input.shape[1]
-        self._z = np.dot(input.T, self._weights)+np.matlib.repmat(self._bias, input.shape[1], 1)
+        self._x = np.atleast_2d(input).T
+        self._batch_size = self._x.shape[1]
+        self._z = np.dot(self._weights, self._x)
+        self._z += np.matlib.repmat(self._bias, self._x.shape[1], 1).T
         self._a = self._forward_pass(self._z)
         return self._a
 
@@ -165,10 +180,10 @@ class Layer:
         all_grads_x = []
         all_diags = []
         for i in range(self._batch_size):
-            curr_sigma = self._gradient(np.atleast_2d(self._z[i]))[0]
+            curr_sigma = self._gradient(np.atleast_2d(self._z.T[i]))[0]
             diag = np.diag(curr_sigma)
             t = np.tensordot(self._x.T[i], np.identity(self._output_dim), axes=0)
-            xt = np.dot(diag, self._weights.T)
+            xt = np.dot(diag, self._weights)
             t = t.reshape(self._input_dim * self._output_dim, self._output_dim).T
             all_grads_p.append(np.dot(diag, t))
             all_grads_x.append(xt)
@@ -177,8 +192,9 @@ class Layer:
                                                     self._input_dim * self._output_dim)
         self._x_grad = block_diag(*all_grads_x)
         self._all_diags = np.array(all_diags).reshape(self._batch_size * self._output_dim,
-                                                self._output_dim)
+                                                      self._output_dim)
         self._jacobian = all_grads_p
+
 
     def calc_softmax_grad(self, labels):
         if not self._softmax_layer:
@@ -187,12 +203,18 @@ class Layer:
         w_grad, b_grad = self._gradient(self._x, self._weights, self._bias, labels)
         self._theta_grad = np.concatenate((w_grad.flatten(), b_grad))
 
-    def set_weights(self, weights):
-        update_w = np.array(weights[: self._input_dim*self._output_dim]).reshape(self._input_dim,
-                                                                                 self._output_dim)
-        #update_b = np.array(weights[self._input_dim*self._output_dim:])
+    def calc_softmax_obj(self, labels):
+        if not self._softmax_layer:
+            raise BaseException("Can only be performed on a softmax layer")
+        return softmax_obj(self._x, labels, self._weights, self._bias)
+
+    def set_weights(self, weights, update_bias=False):
+        update_w = np.array(weights[: self._input_dim * self._output_dim]).reshape(self._output_dim,
+                                                                                   self._input_dim)
+        update_b = np.array(weights[self._input_dim*self._output_dim:])
         self._weights = update_w
-        #self._bias = update_b
+        if update_bias:
+            self._bias = update_b
 
     def inc_weights(self, weights):
         update_w = np.array(weights[: self._input_dim*self._output_dim]).reshape(self._input_dim,
@@ -204,11 +226,19 @@ class Layer:
     def get_param_num(self):
         return self._input_dim*self._output_dim+self._output_dim
 
+    def get_params(self):
+        return np.concatenate((self._weights.T.flatten(), self._bias))
+
     def get_theta_grad(self):
         return self._theta_grad
 
     def get_jacobian(self):
-        return self._jacobian
+        ans = np.concatenate((self._jacobian, self._all_diags), axis=1)
+        print(ans)
+        print(self.get_params())
+        print(self._weights)
+        print('-------------------------')
+        return ans
 
 
 class Network:
@@ -240,7 +270,7 @@ class Network:
                                                                                     input.shape[0]))
         curr_input = input
         for layer in self._layers:
-            curr_input = layer.forward_pass(curr_input).T
+            curr_input = layer.forward_pass(curr_input)
         return curr_input
 
     def back_propagation(self, labels):
@@ -250,7 +280,6 @@ class Network:
             next_layer = self._layers[ind+1]
             curr_layer = self._layers[ind]
             curr_layer.back_propagation(next_layer)
-            #curr_layer.update_weights(alpha)
 
     def inc_weights(self, new_weights):
         last_ind = 0
@@ -261,9 +290,19 @@ class Network:
             layer.inc_weights(curr_theta)
             last_ind = curr_ind
 
+    def set_weights(self, new_weights):
+        last_ind = 0
+        for layer in self._layers:
+            curr_ind = layer.get_input_dim()*layer.get_output_dim()+layer.get_output_dim()
+            curr_ind = curr_ind + last_ind
+            curr_theta = np.array(new_weights[last_ind: curr_ind])
+            layer.set_weights(curr_theta, update_bias=True)
+            last_ind = curr_ind
+
     def calc_error(self, x, y):
-        output = self.forward_pass(x)
-        return np.linalg.norm(y-output)
+        self.forward_pass(x)
+        ans = self._layers[-1].calc_softmax_obj(y)
+        return ans
 
     def get_param_num(self):
         return sum([layer.get_param_num() for layer in self._layers])
@@ -272,6 +311,10 @@ class Network:
         if ind >= len(self._layers):
             raise BaseException("Index out of bounds")
         return self._layers[ind]
+
+    def get_params(self):
+        params = [layer.get_params() for layer in self._layers]
+        return np.concatenate(params)
 
 #TESTING
 
@@ -287,7 +330,6 @@ if __name__ == '__main__':
     training = mat['Yt']
     x = training
     y = labels
-    """
     t = 50
     x = np.zeros((t**2, 2))
     y = np.zeros((t**2, 2))
@@ -296,36 +338,36 @@ if __name__ == '__main__':
     for i1, i2 in product(np.linspace(-1.5, 1.5, t), np.linspace(-1.5, 1.5, t)):
         x[curr][0] = i1
         x[curr][1] = i2
-        if i2 < 0:
+        if 0.25 < np.abs(i1) < 0.75:
             y[curr][1] = 1
         else:
             y[curr][0] = 1
         curr = curr + 1
     x = x.T
     y = y.T
-    """
     n = Network()
-    n.add_layer(Layer(2, 5, RELU_ACTIVATION))
-    n.add_layer(Layer(5, 2, None, softmax_layer=True))
+    n.add_layer(Layer(2, 10, TANH_ACTIVATION))
+    n.add_layer(Layer(10, 2, None, softmax_layer=True))
     errors = []
-    alpha = 0.05
+    alpha = 0.02
     batches = np.random.permutation(range(y.shape[1]))
     batch_size = 100
     curr_ind = 0
     print(n.calc_error(x, y))
-    for i in range(100):
+    for i in range(25):
         curr_batch = batches[curr_ind: curr_ind+batch_size]
         curr_ind = curr_ind+batch_size
         batch_x = np.array([x.T[ind] for ind in curr_batch]).T
         batch_y = np.array([y.T[ind] for ind in curr_batch]).T
+
         g = n.get_grad(batch_x, batch_y)
         g = g*alpha
         n.inc_weights(-g)
-        #alpha = alpha*0.999
+        alpha = alpha*0.99
         errors.append(n.calc_error(x, y))
-    #plt.plot(range(len(errors)), errors)
-    #plt.show()
-    #exit()
+    plt.plot(range(len(errors)), errors)
+    plt.show()
+    exit()
     print(errors[-1])
     x_range = np.linspace(-1.5, 1.5, 100)
     y_range = np.linspace(-1.5, 1.5, 100)
@@ -341,7 +383,7 @@ if __name__ == '__main__':
     coord_y_pos = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
     coord_x_neg = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
     coord_y_neg = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
-    plt.scatter(coord_x_pos, coord_y_pos, alpha=0.2)
-    plt.scatter(coord_x_neg, coord_y_neg, alpha=0.2)
+    #plt.scatter(coord_y_pos, coord_x_pos, alpha=0.2)
+    #plt.scatter(coord_y_neg, coord_x_neg, alpha=0.2)
     plt.show()
     exit()
