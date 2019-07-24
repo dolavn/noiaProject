@@ -7,6 +7,63 @@ from NeuralNetwork import Network, TANH_ACTIVATION, RELU_ACTIVATION, Layer
 from itertools import product
 
 
+X_EXAMPLE = np.array([[2, 5, 1], [2, 5, 1], [2, 5, 1]])
+W_EXAMPLE = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.1, 0.1])
+
+
+def get_ing(inp):
+    w = inp[:6].reshape(3, 2).T.flatten()
+    w1 = w[:3]
+    w2 = w[3:]
+    b = inp[6:]
+    x1 = X_EXAMPLE[0].T
+    x2 = X_EXAMPLE[1].T
+    x3 = X_EXAMPLE[2].T
+    t1 = np.dot(x1, w1)+b[0]
+    t2 = np.dot(x1, w2)+b[1]
+    t3 = np.dot(x2, w1)+b[0]
+    t4 = np.dot(x2, w2)+b[1]
+    t5 = np.dot(x3, w1)+b[0]
+    t6 = np.dot(x3, w2)+b[1]
+    t1 = 1-np.tanh(t1)**2
+    t2 = 1-np.tanh(t2)**2
+    t3 = 1-np.tanh(t3)**2
+    t4 = 1-np.tanh(t4)**2
+    t5 = 1-np.tanh(t5)**2
+    t6 = 1-np.tanh(t6)**2
+    return x1, x2, x3, t1, t2, t3, t4, t5, t6
+
+
+def get_jacobian_for_example_1(w):
+    assert(np.all(w == W_EXAMPLE))
+    x1, _, _, t1, t2, _, _, _, _ = get_ing(w)
+    mat = np.array([[x1[0]*t1, 0, x1[1]*t1, 0, x1[2]*t1, 0, t1, 0],
+                    [0, x1[0]*t2, 0, x1[1]*t2, 0, x1[2]*t2, 0, t2]])
+    return mat
+
+
+def get_jacobian_for_example_2(w):
+    assert(np.all(w == W_EXAMPLE))
+    x1, x2, _, t1, t2, t3, t4, _, _ = get_ing(w)
+    mat = np.array([[x1[0]*t1, 0, x1[1]*t1, 0, x1[2]*t1, 0, t1, 0],
+                    [0, x1[0]*t2, 0, x1[1]*t2, 0, x1[2]*t2, 0, t2],
+                    [x2[0] * t3, 0, x2[1] * t3, 0, x2[2] * t3, 0, t3, 0],
+                    [0, x2[0] * t4, 0, x2[1] * t4, 0, x2[2] * t4, 0, t4]])
+    return mat
+
+
+def get_jacobian_for_example_3(w):
+    assert(np.all(w == W_EXAMPLE))
+    x1, x2, x3, t1, t2, t3, t4, t5, t6 = get_ing(w)
+    mat = np.array([[x1[0]*t1, 0, x1[1]*t1, 0, x1[2]*t1, 0, t1, 0],
+                    [0, x1[0]*t2, 0, x1[1]*t2, 0, x1[2]*t2, 0, t2],
+                    [x2[0] * t3, 0, x2[1] * t3, 0, x2[2] * t3, 0, t3, 0],
+                    [0, x2[0] * t4, 0, x2[1] * t4, 0, x2[2] * t4, 0, t4],
+                    [x3[0] * t5, 0, x3[1] * t5, 0, x3[2] * t5, 0, t5, 0],
+                    [0, x3[0] * t6, 0, x3[1] * t6, 0, x3[2] * t6, 0, t6]
+                    ])
+    return mat
+
 def get_mu(w, x, b, num_of_labels):
     mus = [np.dot(x.T, w[i])+b[i] for i in range(num_of_labels)]
     mu = np.array([max([m[i] for m in mus]) for i in range(mus[0].shape[0])])
@@ -62,7 +119,6 @@ def gradient_test(f, g, dim):
     epsilons = np.linspace(0, 0.001, 200)
     for epsilon in epsilons:
         lin = np.abs(f(x+epsilon*d)-f(x))
-        print(lin)
         d_flat = d.flatten()
         g_flat = g(x).flatten()
         dot = np.dot(d_flat, g_flat)
@@ -134,6 +190,8 @@ def jacobian_test(f, j, dim):
     quads = []
     epsilons = np.linspace(0, 0.2, 100)
     for epsilon in epsilons:
+        assert(f(x+epsilon*d).shape == j(x, epsilon*d).shape)
+        assert (f(x + epsilon * d).shape == f(x).shape)
         lin = np.linalg.norm(f(x+epsilon*d)-f(x))
         quad = np.linalg.norm(f(x+epsilon*d)-f(x)-j(x, epsilon*d))
         lins.append(lin)
@@ -178,20 +236,29 @@ curr_batch = [0]
 l = n.get_layer(0)
 
 
-x = np.array([[2, 5, 1]])
+x = np.array([[2, 5, 1], [2, 5, 1], [2, 5, 1]])
+
+TEST_SETS = [(x[:1].T, get_jacobian_for_example_1), (x[:2].T, get_jacobian_for_example_2),
+             (x[:3].T, get_jacobian_for_example_3)]
+
+x_cool, get_jacobian_for_example = TEST_SETS[2]
 
 def f(inp):
     l.set_weights(inp, update_bias=True)
-    x1 = x[0]
-    mf_net = l.forward_pass(x1)
-    #print('mf net', mf_net)
-    w = inp[:6].reshape(2, 3)
-    b = inp[6:]
-    my_forward = np.atleast_2d(np.tanh(np.dot(w, x1.T)+b).flatten()).T
-    print('mf', my_forward)
+    print(l.forward_pass(x_cool))
+    mf_net = np.atleast_2d(l.forward_pass(x_cool).T.flatten()).T
+    w = inp[:6].reshape(3, 2).T
+    b = np.atleast_2d(inp[6:]).T
+    my_forward = np.atleast_2d(np.tanh(np.dot(w, x_cool)+b).flatten()).T
     diff = my_forward-mf_net
+    print(my_forward)
+    print(mf_net)
+    exit()
     if np.any(np.abs(diff) > 0.00001):
-        raise BaseException("aaa")
+        pass
+        #print(my_forward)
+        #print(mf_net)
+        #raise BaseException("aaa")
     return mf_net
     return my_forward
     return l.forward_pass(x1)
@@ -200,49 +267,18 @@ def f(inp):
 
 def jacob(inp, v):
     l.set_weights(inp, update_bias=True)
-    inp = np.concatenate((inp[:6].reshape(2, 3).T.flatten(), inp[6:]))
-    x1 = x[0]
-    l.forward_pass(x1)
+    #inp = np.concatenate((inp[:6].reshape(2, 3).T.flatten(), inp[6:]))
+    l.forward_pass(x_cool)
     l.calc_jacobian()
+    mat = get_jacobian_for_example(inp)
     j = l.get_jacobian()
     ans = np.dot(j, v)
     ans = np.atleast_2d(np.dot(j, v)).T
-    #print(np.atleast_2d(np.dot(j, v)).T)
-    return ans
-    # print(inp)
-    x1 = x[0]
-    x2 = x[0]
-    x3 = x[0]
-    w = inp[:6].reshape(3, 2).T.flatten()
-    b = inp[6:]
-    w1 = w[:3]
-    w2 = w[3:]
-    wm = inp[:6].reshape(2, 3)
-    t1 = np.dot(x1, w1)+b[0]
-    t2 = np.dot(x1, w2)+b[1]
-    t3 = np.dot(x2, w1)+b[0]
-    t4 = np.dot(x2, w2)+b[1]
-    t5 = np.dot(x3, w1)+b[0]
-    t6 = np.dot(x3, w2)+b[1]
-    t1 = 1-np.tanh(t1)**2
-    t2 = 1-np.tanh(t2)**2
-    t3 = 1-np.tanh(t3)**2
-    t4 = 1-np.tanh(t4)**2
-    t5 = 1-np.tanh(t5)**2
-    t6 = 1-np.tanh(t6)**2
-    mat = np.array([[x1[0]*t1, 0, x1[1]*t1, 0, x1[2]*t1, 0, t1, 0],
-                    [0, x1[0]*t2, 0, x1[1]*t2, 0, x1[2]*t2, 0, t2]])
-    mat2 = np.array([[x1[0]*t1, x1[1]*t1, x1[2]*t1, 0, 0, 0, t1, 0],
-                    [0, 0, 0, x1[0]*t2, x1[1]*t2, x1[2]*t2, 0, t2],
-                    [x2[0]*t3, x2[1]*t3, x2[2]*t3, 0, 0, 0, t3, 0],
-                    [0, 0, 0, x2[0]*t4, x2[1]*t4, x2[2]*t4, 0, t4],
-                    [x3[0] * t5, x3[1] * t5, x3[2] * t5, 0, 0, 0, t5, 0],
-                    [0, 0, 0, x3[0] * t6, x3[1] * t6, x3[2] * t6, 0, t6]])
-    print('a', mat)
-    print('a', inp)
     diff = np.dot(j, v)-np.dot(mat, v)
+    if np.any(np.abs(diff) > 0.00001):
+        raise BaseException("aaa")
     #exit()
-    return np.dot(j, v)
+    return np.atleast_2d(np.dot(j, v)).T
 
 def f_network(inp):
     n.set_weights(inp)

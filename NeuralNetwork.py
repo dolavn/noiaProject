@@ -156,7 +156,7 @@ class Layer:
         if self._input_dim != input.shape[0]:
             print('received:{}\nactual:{}'.format(input.shape[0], self._input_dim))
             raise BaseException("Invalid dimensions")
-        self._x = np.atleast_2d(input).T
+        self._x = np.atleast_2d(input)
         self._batch_size = self._x.shape[1]
         self._z = np.dot(self._weights, self._x)
         self._z += np.matlib.repmat(self._bias, self._x.shape[1], 1).T
@@ -209,16 +209,16 @@ class Layer:
         return softmax_obj(self._x, labels, self._weights, self._bias)
 
     def set_weights(self, weights, update_bias=False):
-        update_w = np.array(weights[: self._input_dim * self._output_dim]).reshape(self._output_dim,
-                                                                                   self._input_dim)
+        update_w = np.array(weights[
+                            : self._input_dim * self._output_dim]).reshape(*self._weights.shape[::-1]).T
         update_b = np.array(weights[self._input_dim*self._output_dim:])
         self._weights = update_w
         if update_bias:
             self._bias = update_b
 
     def inc_weights(self, weights):
-        update_w = np.array(weights[: self._input_dim*self._output_dim]).reshape(self._input_dim,
-                                                                                 self._output_dim)
+        update_w = np.array(weights[
+                            : self._input_dim * self._output_dim]).reshape(*self._weights.shape[::-1]).T
         update_b = np.array(weights[self._input_dim*self._output_dim:])
         self._weights = self._weights + update_w
         self._bias = self._bias + update_b
@@ -234,10 +234,10 @@ class Layer:
 
     def get_jacobian(self):
         ans = np.concatenate((self._jacobian, self._all_diags), axis=1)
-        print(ans)
-        print(self.get_params())
-        print(self._weights)
-        print('-------------------------')
+        #print(ans)
+        #print(self.get_params())
+        #print(self._weights)
+        #print('-------------------------')
         return ans
 
 
