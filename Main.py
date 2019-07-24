@@ -183,7 +183,7 @@ def jacobian_test(f, j, dim):
     :return: None
     """
     x = np.random.rand(dim)
-    x = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.1, 0.1])
+    #x = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.1, 0.1])
     d = np.random.rand(dim)
     d = d/np.linalg.norm(d)
     lins = []
@@ -219,7 +219,7 @@ exit()
 input_dim = 3
 output_dim = 2
 x = np.random.random((3, input_dim)).T
-x = np.array([[2, 5, 1], [1, 1, 1], [2, 4, 2]]).T
+#x = np.array([[2, 5, 1], [1, 1, 1], [2, 4, 2]]).T
 y_arr = []
 for i in range(100):
     if i % 2 == 0:
@@ -236,7 +236,7 @@ curr_batch = [0]
 l = n.get_layer(0)
 
 
-x = np.array([[2, 5, 1], [2, 5, 1], [2, 5, 1]])
+#x = np.array([[2, 5, 1], [0, 4, 1], [1, 2, 1]])
 
 TEST_SETS = [(x[:1].T, get_jacobian_for_example_1), (x[:2].T, get_jacobian_for_example_2),
              (x[:3].T, get_jacobian_for_example_3)]
@@ -245,20 +245,16 @@ x_cool, get_jacobian_for_example = TEST_SETS[2]
 
 def f(inp):
     l.set_weights(inp, update_bias=True)
-    print(l.forward_pass(x_cool))
+    #print(l.forward_pass(x_cool))
     mf_net = np.atleast_2d(l.forward_pass(x_cool).T.flatten()).T
     w = inp[:6].reshape(3, 2).T
     b = np.atleast_2d(inp[6:]).T
-    my_forward = np.atleast_2d(np.tanh(np.dot(w, x_cool)+b).flatten()).T
+    my_forward = np.atleast_2d(np.tanh(np.dot(w, x_cool)+b).T.flatten()).T
     diff = my_forward-mf_net
-    print(my_forward)
-    print(mf_net)
-    exit()
-    if np.any(np.abs(diff) > 0.00001):
-        pass
-        #print(my_forward)
-        #print(mf_net)
-        #raise BaseException("aaa")
+    if np.any(np.abs(diff) > 0.00001) and False:
+        print(my_forward)
+        print(mf_net)
+        raise BaseException("aaa")
     return mf_net
     return my_forward
     return l.forward_pass(x1)
@@ -270,12 +266,13 @@ def jacob(inp, v):
     #inp = np.concatenate((inp[:6].reshape(2, 3).T.flatten(), inp[6:]))
     l.forward_pass(x_cool)
     l.calc_jacobian()
-    mat = get_jacobian_for_example(inp)
+    #mat = get_jacobian_for_example(inp)
     j = l.get_jacobian()
+    mat = j
     ans = np.dot(j, v)
     ans = np.atleast_2d(np.dot(j, v)).T
     diff = np.dot(j, v)-np.dot(mat, v)
-    if np.any(np.abs(diff) > 0.00001):
+    if np.any(np.abs(diff) > 0.00001) and False:
         raise BaseException("aaa")
     #exit()
     return np.atleast_2d(np.dot(j, v)).T
