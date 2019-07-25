@@ -42,8 +42,8 @@ def create_c_matrix(y):
 
 
 def sm_activation_fp(z):
-    m = z.T.shape[1]
-    ans = z
+    m = z.shape[1]
+    ans = z.T
     for i in range(m):
         ans[i] = ans[i] - max(ans[i])
         ans[i] = np.exp(ans[i])
@@ -70,40 +70,62 @@ def get_shapes(x, W, y, b):
 
 
 def sm_activation_gp(x, w, b, y):
-    m, n, l = get_shapes(x, w, y, b)
+    m, n, l = get_shapes(x, w.T, y, b)
     #print('m:{}\n n:{}\n l:{}'.format(m, n, l))
     c = create_c_matrix(y)
     mu = get_mu(w, x, b, l)
-    sum_all = sum([np.exp(np.dot(w.T[i].T, x)+b[i]-mu) for i in range(l)])
-    cis = [(np.exp(np.dot(w.T[i].T, x)+b[i]-mu)/sum_all)-c[i] for i in range(l)]
-    cis = [1/len(x)*np.dot(x, elem) for elem in cis]
+    sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(l)])
+    cis = [(np.exp(np.dot(x.T, w[i])+b[i]-mu)/sum_all)-c[i] for i in range(l)]
+    cis = [(1/m)*np.dot(x, elem) for elem in cis]
     cis = [elem.reshape(1, -1) for elem in cis]
     ans = np.concatenate(cis, axis=0)
-    bs = [np.exp(np.dot(w.T[i].T, x)+b[i]-mu)/sum_all for i in range(l)]
+    bs = [np.exp(np.dot(x.T, w[i])+b[i]-mu)/sum_all for i in range(l)]
     bs = [np.dot(curr, np.ones(len(curr))) for curr in bs]
     bs = [curr - sum(c[i]) for i, curr in enumerate(bs)]
-    bs = np.array([(1/len(x))*curr for curr in bs])
+    bs = np.array([(1/m)*curr for curr in bs])
     return ans, bs
 
 
-def sm_activation_gx(x, W, y, b):
+def sm_activation_gx(x, y, W, b):
+    #print(x.shape)
+    W = W.T
     m, n, l = get_shapes(x, W, y, b)
+    #print('w', W.shape)
+    #print('x', x.shape)
+    #print('y', y.shape)
+    #print('m:{}, n:{}, l:{}'.format(m, n, l))
+    mu = get_mu(W, x, b, l)
+    mu = 0
     c = create_c_matrix(y)
-    v_sum = sum([np.exp(np.dot(W.T[i].T, x)) for i in range(l)])
-    v_sum = np.matlib.repmat(v_sum, l, 1)
-    ans = np.dot(W.T, x)/v_sum
+    #print('c', c.shape)
+    v_sum = sum([np.exp(np.dot(W.T[i].T, x)+b[i]-mu) for i in range(l)])
+    #print('b before repmat', b.shape)
+    #print('b', np.matlib.repmat(np.atleast_2d(b).T, 1, m).shape)
+    #print('w*x', np.dot(W.T, x).shape)
+    assert(np.matlib.repmat(np.atleast_2d(b).T, 1, m).shape == np.dot(W.T, x).shape)
+    ans = (np.exp(np.dot(W.T, x)+np.matlib.repmat(np.atleast_2d(b).T, 1, m)))
+    ans = ans/v_sum
+    #print(ans)
+    #print(c)
+    #print('ans', ans.shape)
     ans = ans - c
     ans = np.dot(W, ans)
+    #print(ans)
     ans = ans/m
+    #print(ans)
+    #exit()
+    #print(ans.shape)
+    #exit()
     return ans
 
 
 def softmax_obj(x, y, w, b):
-    m, n, l = get_shapes(x, w, y, b)
+    m, n, l = get_shapes(x, w.T, y, b)
+    #print('m:{}\n n:{}\n l:{}'.format(m, n, l))
     c = create_c_matrix(y)
     mu = get_mu(w, x, b, l)
-    sum_all = sum([np.exp(np.dot(w.T[i].T, x)+b[i]-mu) for i in range(l)])
-    val = -sum([np.dot(c[i].T, np.log(np.exp(np.dot(w.T[i].T, x)+b[i]-mu)/sum_all)) for i in range(l)])/len(x)
+    sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(l)])
+    val = -sum([np.dot(c[i].T, np.log(np.exp(np.dot(x.T, w[i])+b[i]-mu)/sum_all)) for i in range(l)])/m
     return val
 
 
@@ -170,9 +192,16 @@ class Layer:
             raise BaseException("No next layer")
         else:
             self.calc_jacobian()
-            self._delta = np.dot(self._x_grad.T, next_layer.get_delta())
-            self._g = np.dot(self._jacobian.T, next_layer.get_delta()).reshape(*self._weights.shape)
-            self._b = np.dot(self._all_diags.T, next_layer.get_delta()).reshape(*self._bias.shape)
+            jacob = self.get_jacobian()
+            jacob_data = self.get_jacobian_data()
+            #self._delta = np.dot(self._x_grad.T, next_layer.get_delta())
+            self._delta = np.dot(jacob_data.T, next_layer.get_delta())
+            my_grad = np.dot(jacob.T, next_layer.get_delta())
+            #exit()
+            self._g = my_grad[:self._input_dim*self._output_dim].reshape(*self._weights.shape)
+            self._b = my_grad[self._input_dim*self._output_dim:].reshape(*self._bias.shape)
+            #self._g = np.dot(self._jacobian.T, next_layer.get_delta()).reshape(*self._weights.shape)
+            #self._b = np.dot(self._all_diags.T, next_layer.get_delta()).reshape(*self._bias.shape)
             self._theta_grad = np.concatenate((self._g.flatten(), self._b))
 
     def calc_jacobian(self):
@@ -195,13 +224,12 @@ class Layer:
                                                       self._output_dim)
         self._jacobian = all_grads_p
 
-
     def calc_softmax_grad(self, labels):
         if not self._softmax_layer:
             raise BaseException("Can only be performed on a softmax layer")
-        self._delta = sm_activation_gx(self._x, self._weights, labels, self._bias).flatten()
+        self._delta = sm_activation_gx(self._x, labels, self._weights, self._bias).flatten()
         w_grad, b_grad = self._gradient(self._x, self._weights, self._bias, labels)
-        self._theta_grad = np.concatenate((w_grad.flatten(), b_grad))
+        self._theta_grad = np.concatenate((w_grad.T.flatten(), b_grad))
 
     def calc_softmax_obj(self, labels):
         if not self._softmax_layer:
@@ -213,8 +241,7 @@ class Layer:
                             : self._input_dim * self._output_dim]).reshape(*self._weights.shape[::-1]).T
         update_b = np.array(weights[self._input_dim*self._output_dim:])
         self._weights = update_w
-        if update_bias:
-            self._bias = update_b
+        self._bias = update_b
 
     def inc_weights(self, weights):
         update_w = np.array(weights[
@@ -231,6 +258,9 @@ class Layer:
 
     def get_theta_grad(self):
         return self._theta_grad
+
+    def get_jacobian_data(self):
+        return self._x_grad
 
     def get_jacobian(self):
         ans = np.concatenate((self._jacobian, self._all_diags), axis=1)
@@ -324,12 +354,13 @@ if __name__ == '__main__':
     Y = np.array([[1, 0], [0, 1], [0, 1], [1, 0], [0, 1]]).T
     W = np.array([[0.5, 0.5, 1], [0.2, 0, 1]]).T
     b = np.array([0, 0])
-    g = sm_activation_gx(X, W, Y, b)
+    #g = sm_activation_gx(X, W.T, Y, b)
     mat = scipy.io.loadmat('SwissRollData.mat')
     labels = mat['Ct']
     training = mat['Yt']
     x = training
     y = labels
+    """
     t = 50
     x = np.zeros((t**2, 2))
     y = np.zeros((t**2, 2))
@@ -345,16 +376,19 @@ if __name__ == '__main__':
         curr = curr + 1
     x = x.T
     y = y.T
+    """
     n = Network()
-    n.add_layer(Layer(2, 10, TANH_ACTIVATION))
+    n.add_layer(Layer(2, 10, RELU_ACTIVATION))
+    n.add_layer(Layer(10, 10, RELU_ACTIVATION))
     n.add_layer(Layer(10, 2, None, softmax_layer=True))
+    exit()
     errors = []
-    alpha = 0.02
+    alpha = 0.01
     batches = np.random.permutation(range(y.shape[1]))
     batch_size = 100
     curr_ind = 0
     print(n.calc_error(x, y))
-    for i in range(25):
+    for i in range(50):
         curr_batch = batches[curr_ind: curr_ind+batch_size]
         curr_ind = curr_ind+batch_size
         batch_x = np.array([x.T[ind] for ind in curr_batch]).T
@@ -376,14 +410,14 @@ if __name__ == '__main__':
     for (i1, x_i), (i2, y_i) in product(enumerate(x_range),
                                         enumerate(y_range)):
         vec = np.atleast_2d(np.array([x_i, y_i]))
-        label = n.forward_pass(vec.T)
+        label = n.forward_pass(vec.T)[0]
         image[i1][i2] = label[0]
     plt.imshow(image, extent=[-1.5, 1.5, -1.5, 1.5])
     coord_x_pos = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
     coord_y_pos = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
     coord_x_neg = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
     coord_y_neg = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
-    #plt.scatter(coord_y_pos, coord_x_pos, alpha=0.2)
-    #plt.scatter(coord_y_neg, coord_x_neg, alpha=0.2)
+    plt.scatter(coord_y_pos, coord_x_pos, alpha=0.2)
+    plt.scatter(coord_y_neg, coord_x_neg, alpha=0.2)
     plt.show()
     exit()

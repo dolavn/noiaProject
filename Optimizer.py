@@ -1,6 +1,8 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from NeuralNetwork import Network
 
-MAX_ITER = 150
+MAX_ITER = 50
 
 ALPHA_0 = 1
 BETA = 0.5
@@ -44,9 +46,51 @@ def create_batches(data_size, batch_size):
     #print(batches)
     return batches
 
+TOTAL_DOTS = 50
 
-def stochastic_gradient_descent(data_size, num_of_labels, objective, gradient, input_shape,
-                                batch_size=100):
+def print_percentage(curr_ind, max_ind):
+    percantage = 100*(curr_ind/max_ind)
+    num_pos = int(TOTAL_DOTS*(curr_ind/max_ind))
+    num_neg = TOTAL_DOTS-num_pos
+    output = '[' + (num_pos-1)*'=' + '>' + ' '*num_neg + '][{}%]'.format(percantage)
+    print(output)
+
+
+def stochastic_gradient_descent(network, x, y, batch_size=100, epochs=1):
+    """
+    Performs a general one point iterative method on a given objective function.
+    :param objective: The objective function
+    :param gradient: The gradient of the objective function
+    :param input_shape: The shape of the input
+    :return: The optimal value of w, and the history of convergence on the train dataset,
+    and test dataset if given.
+    """
+    n, m = x.shape
+    batches = create_batches(m, batch_size)
+    obj_train = []
+    alpha = 0.01
+    for epoch in range(epochs):
+        print('Epoch {}'.format(epoch+1))
+        for curr_batch_ind, batch in enumerate(batches):
+            print_percentage(curr_batch_ind, len(batches))
+            curr_x = np.array([x.T[i] for i in batch]).T
+            curr_y = np.array([y.T[i] for i in batch]).T
+            obj = network.calc_error(x, y)
+            obj_train.append(obj)
+            grad = network.get_grad(curr_x, curr_y)
+            grad = -grad*alpha
+            network.inc_weights(grad)
+            #alpha = get_step_size(w, lambda x: objective(x, curr_batch), g, -g)
+    #obj_train = [np.abs(obj - objective(w, range(data_size))) for obj in obj_train]
+    fig1, ax1 = plt.subplots()
+    ax1.set_title('Objective function')
+    plt.plot(range(len(obj_train)), obj_train)
+    plt.savefig('objective_func.png')
+    return network, obj_train
+
+
+def stochastic_gradient_descent_old(data_size, objective, gradient, input_shape,
+                                    batch_size=100):
     """
     Performs a general one point iterative method on a given objective function.
     :param objective: The objective function
@@ -75,4 +119,6 @@ def stochastic_gradient_descent(data_size, num_of_labels, objective, gradient, i
         if np.linalg.norm(g)/np.linalg.norm(grad1) <= EPSILON:
             break
     #obj_train = [np.abs(obj - objective(w, range(data_size))) for obj in obj_train]
+    plt.plot(range(len(obj_train)), obj_train)
+    plt.show()
     return w, obj_train

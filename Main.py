@@ -116,15 +116,15 @@ def gradient_test(f, g, dim):
     d = d/np.linalg.norm(d)
     lins = []
     quads = []
-    epsilons = np.linspace(0, 0.001, 200)
+    epsilons = np.linspace(0, 0.2, 200)
     for epsilon in epsilons:
         lin = np.abs(f(x+epsilon*d)-f(x))
         d_flat = d.flatten()
         g_flat = g(x).flatten()
         dot = np.dot(d_flat, g_flat)
         quad = np.abs(f(x+epsilon*d)-f(x)-epsilon*dot)
-        lins.append(lin*50)
-        quads.append(quad)
+        lins.append(lin)
+        quads.append(quad*5)
     fig1, ax1 = plt.subplots()
     ax1.set_title('Gradient test')
     plt.plot(epsilons, lins)
@@ -216,7 +216,7 @@ print(t1.shape)
 exit()
 """
 
-input_dim = 3
+input_dim = 10
 output_dim = 2
 x = np.random.random((3, input_dim)).T
 #x = np.array([[2, 5, 1], [1, 1, 1], [2, 4, 2]]).T
@@ -231,22 +231,24 @@ n = Network()
 n.add_layer(Layer(input_dim, output_dim, TANH_ACTIVATION))
 n.add_layer(Layer(output_dim, 2, None, softmax_layer=True))
 curr_batch = [0]
-#batch_x = np.array([x.T[ind] for ind in curr_batch]).T
-#batch_y = np.array([y.T[ind] for ind in curr_batch]).T
+batch_x = np.array([x.T[ind] for ind in curr_batch]).T
+batch_y = np.array([y.T[ind] for ind in curr_batch]).T
 l = n.get_layer(0)
 
 
 #x = np.array([[2, 5, 1], [0, 4, 1], [1, 2, 1]])
 
-TEST_SETS = [(x[:1].T, get_jacobian_for_example_1), (x[:2].T, get_jacobian_for_example_2),
-             (x[:3].T, get_jacobian_for_example_3)]
+TEST_SETS = [(x.T[:1].T, get_jacobian_for_example_1), (x.T[:2].T, get_jacobian_for_example_2),
+             (x.T[:3].T, get_jacobian_for_example_3)]
 
-x_cool, get_jacobian_for_example = TEST_SETS[2]
+x_cool, get_jacobian_for_example = TEST_SETS[1]
+
 
 def f(inp):
     l.set_weights(inp, update_bias=True)
     #print(l.forward_pass(x_cool))
-    mf_net = np.atleast_2d(l.forward_pass(x_cool).T.flatten()).T
+    mf_net = np.atleast_2d(l.forward_pass(batch_x).T.flatten()).T
+    """
     w = inp[:6].reshape(3, 2).T
     b = np.atleast_2d(inp[6:]).T
     my_forward = np.atleast_2d(np.tanh(np.dot(w, x_cool)+b).T.flatten()).T
@@ -255,17 +257,17 @@ def f(inp):
         print(my_forward)
         print(mf_net)
         raise BaseException("aaa")
+    """
     return mf_net
-    return my_forward
-    return l.forward_pass(x1)
-    return np.tanh(np.dot(w, x1.T)+b).flatten()
 
 
 def jacob(inp, v):
     l.set_weights(inp, update_bias=True)
-    #inp = np.concatenate((inp[:6].reshape(2, 3).T.flatten(), inp[6:]))
-    l.forward_pass(x_cool)
+    l.forward_pass(batch_x)
     l.calc_jacobian()
+    j = l.get_jacobian()
+    """
+    #inp = np.concatenate((inp[:6].reshape(2, 3).T.flatten(), inp[6:]))
     #mat = get_jacobian_for_example(inp)
     j = l.get_jacobian()
     mat = j
@@ -275,7 +277,9 @@ def jacob(inp, v):
     if np.any(np.abs(diff) > 0.00001) and False:
         raise BaseException("aaa")
     #exit()
+    """
     return np.atleast_2d(np.dot(j, v)).T
+
 
 def f_network(inp):
     n.set_weights(inp)
@@ -287,10 +291,41 @@ def grad_network(inp):
     return n.get_grad(batch_x, batch_y)
 
 
+mat = scipy.io.loadmat('SwissRollData.mat')
+labels = mat['Ct']
+training = mat['Yt']
+x = training
+y = labels
+n = Network()
+n.add_layer(Layer(2, 10, TANH_ACTIVATION))
+n.add_layer(Layer(10, 10, TANH_ACTIVATION))
+n.add_layer(Layer(10, 2, None, softmax_layer=True))
+n, obj = stochastic_gradient_descent(n, x, y, batch_size=500, epochs=5)
+fig1, ax1 = plt.subplots()
+x_range = np.linspace(-1.5, 1.5, 100)
+y_range = np.linspace(-1.5, 1.5, 100)
+image = np.zeros((100, 100))
+image2 = np.zeros((100, 100))
+for (i1, x_i), (i2, y_i) in product(enumerate(x_range),
+                                    enumerate(y_range)):
+    vec = np.atleast_2d(np.array([x_i, y_i]))
+    label = n.forward_pass(vec.T)[0]
+    image[i1][i2] = label[0]
+plt.imshow(image, extent=[-1.5, 1.5, -1.5, 1.5])
+coord_x_pos = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
+coord_y_pos = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 1]
+coord_x_neg = [x.T[ind][0] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
+coord_y_neg = [x.T[ind][1] for ind in range(y.shape[1]) if y.T[ind][0] == 0]
+plt.scatter(coord_y_pos, coord_x_pos, alpha=0.2)
+plt.scatter(coord_y_neg, coord_x_neg, alpha=0.2)
+plt.show()
+
+exit()
+exit()
 dim = input_dim*output_dim+output_dim
 #dim = 8
-jacobian_test(f, jacob, dim)
-#gradient_test(f_network, grad_network, (n.get_param_num(), ))
+#jacobian_test(f, jacob, dim)
+gradient_test(f_network, grad_network, (n.get_param_num(), ))
 exit()
 num_of_labels = y.shape[0]
 wb = np.concatenate((w.flatten(), b.T), axis=None)
