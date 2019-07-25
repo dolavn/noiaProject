@@ -198,9 +198,6 @@ def grad_network(inp):
 
 
 print('Running Gradient test on softmax')
-gradient_test(f_softmax_example, g_softmax_example, (2, ),
-              title='Softmax gradient test', file_name='softmax_example.png')
-print('Running Gradient test on softmax')
 gradient_test(f_softmax, g_softmax, (FIRST_LAYER_INPUT*LABELS_NUM+LABELS_NUM, ),
               title='Softmax gradient test', file_name='gradient_test_softmax.png')
 print('Running Gradient test on softmax according to data')
@@ -214,7 +211,6 @@ print('Running Jacobian test data')
 jacobian_test(f_jacob_data, jacob_data, batch_x.shape[0]*batch_x.shape[1],
               title='Jacobian test',
               file_name='jacobian_test_data.png')
-#exit()
 print('Running Gradient test on network')
 gradient_test(f_network, grad_network, (n.get_param_num(), ),
               title='Network gradient test', file_name='gradient_test_network.png')
