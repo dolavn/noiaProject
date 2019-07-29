@@ -52,7 +52,7 @@ def print_percentage(curr_ind, max_ind):
     percantage = 100*(curr_ind/max_ind)
     num_pos = int(TOTAL_DOTS*(curr_ind/max_ind))
     num_neg = TOTAL_DOTS-num_pos
-    output = '[' + (num_pos-1)*'=' + '>' + ' '*num_neg + '][{}%]'.format(percantage)
+    output = '[' + (num_pos-1)*'=' + '>' + '.'*num_neg + '][{}%]'.format(percantage)
     print(output)
 
 
