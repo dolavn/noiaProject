@@ -9,13 +9,18 @@ from itertools import product
 mat = scipy.io.loadmat('SwissRollData.mat')
 labels = mat['Ct']
 training = mat['Yt']
+labels_validation = mat['Cv']
+samples_validation = mat['Yv']
 x = training
 y = labels
+x_validation = samples_validation
+y_validation = labels_validation
 n = Network()
 n.add_layer(Layer(2, 10, TANH_ACTIVATION))
-n.add_layer(Layer(10, 10, TANH_ACTIVATION))
+#n.add_layer(Layer(10, 10, TANH_ACTIVATION))
 n.add_layer(Layer(10, 2, None, softmax_layer=True))
-n, obj = stochastic_gradient_descent(n, x, y, batch_size=100, epochs=1)
+n, obj = stochastic_gradient_descent(n, x, y, batch_size=100, epochs=5,
+                                     x_validation=x_validation, y_validation=y_validation)
 fig1, ax1 = plt.subplots()
 x_range = np.linspace(-1.5, 1.5, 100)
 y_range = np.linspace(-1.5, 1.5, 100)

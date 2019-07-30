@@ -29,7 +29,7 @@ def gradient_test(f, g, dim, title='Gradient test', file_name='gradient_test.png
         assert (f(x).shape == dot.shape)
         quad = np.abs(f(x+epsilon*d)-f(x)-epsilon*dot)
         lins.append(lin)
-        quads.append(quad*5)
+        quads.append(quad*10)
     fig1, ax1 = plt.subplots()
     ax1.set_title(title)
     plt.plot(epsilons, lins)
@@ -49,6 +49,8 @@ def jacobian_test(f, j, dim, title='Jacobian Test', file_name='jacobian_test.png
     """
     x = np.random.rand(dim)
     #x = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.1, 0.1])
+    #x = np.array([[1, 0], [2, 1], [4, 1], [5, 2], [1, 4], [2, 3], [0.9, 1],
+    #              [2, 5], [1, 5], [6, 3]]).T.flatten()
     d = np.random.rand(dim)
     d = d/np.linalg.norm(d)
     lins = []
@@ -60,7 +62,7 @@ def jacobian_test(f, j, dim, title='Jacobian Test', file_name='jacobian_test.png
         lin = np.linalg.norm(f(x+epsilon*d)-f(x))
         quad = np.linalg.norm(f(x+epsilon*d)-f(x)-j(x, epsilon*d))
         lins.append(lin)
-        quads.append(quad*4)
+        quads.append(quad*10)
     fig1, ax1 = plt.subplots()
     ax1.set_title(title)
     plt.plot(epsilons, lins)
@@ -70,11 +72,16 @@ def jacobian_test(f, j, dim, title='Jacobian Test', file_name='jacobian_test.png
     plt.savefig(file_name)
 
 
-FIRST_LAYER_INPUT = 10
-SECOND_LAYER_INPUT = 2
+FIRST_LAYER_INPUT = 2
+SECOND_LAYER_INPUT = 4
+THIRD_LAYER_INPUT = 10
+FOURTH_LAYER_INPUT = 15
 LABELS_NUM = 2
-NUM_OF_SAMPLES = 5
+NUM_OF_SAMPLES = 100
 x = np.random.random((NUM_OF_SAMPLES, FIRST_LAYER_INPUT)).T
+#x = np.array([[1, 0], [2, 1], [4, 1], [5, 2], [1, 4], [2, 3], [0.9, 1],
+#              [2, 5], [1, 5], [6, 3]]).T
+#NUM_OF_SAMPLES = 100
 y_arr = []
 for i in range(NUM_OF_SAMPLES):
     if i % 2 == 0:
@@ -84,7 +91,9 @@ for i in range(NUM_OF_SAMPLES):
 y = np.array(y_arr).T
 n = Network()
 n.add_layer(Layer(FIRST_LAYER_INPUT, SECOND_LAYER_INPUT, TANH_ACTIVATION))
-n.add_layer(Layer(SECOND_LAYER_INPUT, LABELS_NUM, None, softmax_layer=True))
+n.add_layer(Layer(SECOND_LAYER_INPUT, THIRD_LAYER_INPUT, TANH_ACTIVATION))
+n.add_layer(Layer(THIRD_LAYER_INPUT, FOURTH_LAYER_INPUT, TANH_ACTIVATION))
+n.add_layer(Layer(FOURTH_LAYER_INPUT, LABELS_NUM, None, softmax_layer=True))
 curr_batch = np.random.permutation(range(NUM_OF_SAMPLES))
 batch_x = np.array([x.T[ind] for ind in curr_batch]).T
 batch_y = np.array([y.T[ind] for ind in curr_batch]).T
@@ -168,18 +177,28 @@ def jacob(inp, v):
 
 
 def f_jacob_data(inp):
-    #l.set_weights(inp)
-    inp = inp.reshape(*batch_x.shape)
+    inp = inp.reshape(*batch_x.shape[::-1]).T
     mf_net = np.atleast_2d(l.forward_pass(inp).T.flatten()).T
     return mf_net
 
 
 def jacob_data(inp, v):
     #l.set_weights(inp)
-    inp = inp.reshape(*batch_x.shape)
+    inp = inp.reshape(*batch_x.shape[::-1]).T
     l.forward_pass(inp)
     l.calc_jacobian()
     j = l.get_jacobian_data()
+    """
+    ans = []
+    for i in range(len(j)):
+        print(j[i].shape)
+        print(inp.T[i].shape)
+        curr_prod = np.dot(inp.T[i], j[i])
+        print(curr_prod.shape)
+        exit()
+        ans.append(curr_prod)
+    exit()
+    """
     return np.atleast_2d(np.dot(j, v)).T
 
 
@@ -196,7 +215,6 @@ def grad_network(inp):
     return n.get_grad(batch_x, batch_y)
 
 
-
 print('Running Gradient test on softmax')
 gradient_test(f_softmax, g_softmax, (FIRST_LAYER_INPUT*LABELS_NUM+LABELS_NUM, ),
               title='Softmax gradient test', file_name='gradient_test_softmax.png')
@@ -207,6 +225,7 @@ print('Running Jacobian test')
 jacobian_test(f_jacob, jacob, FIRST_LAYER_INPUT*SECOND_LAYER_INPUT+SECOND_LAYER_INPUT,
               title='Jacobian test',
               file_name='jacobian_test.png')
+
 print('Running Jacobian test data')
 jacobian_test(f_jacob_data, jacob_data, batch_x.shape[0]*batch_x.shape[1],
               title='Jacobian test',

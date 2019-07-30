@@ -194,15 +194,11 @@ class Layer:
             self.calc_jacobian()
             jacob = self.get_jacobian()
             jacob_data = self.get_jacobian_data()
-            #self._delta = np.dot(self._x_grad.T, next_layer.get_delta())
-            self._delta = np.dot(jacob_data.T, next_layer.get_delta())
-            my_grad = np.dot(jacob.T, next_layer.get_delta())
-            #exit()
+            self._delta = np.dot(jacob_data.T, next_layer.get_delta().flatten())
+            my_grad = np.dot(jacob.T, next_layer.get_delta().flatten())
             self._g = my_grad[:self._input_dim*self._output_dim].reshape(*self._weights.shape)
             self._b = my_grad[self._input_dim*self._output_dim:].reshape(*self._bias.shape)
-            #self._g = np.dot(self._jacobian.T, next_layer.get_delta()).reshape(*self._weights.shape)
-            #self._b = np.dot(self._all_diags.T, next_layer.get_delta()).reshape(*self._bias.shape)
-            self._theta_grad = np.concatenate((self._g.flatten(), self._b))
+            self._theta_grad = np.concatenate((self._g.T.flatten(), self._b))
 
     def calc_jacobian(self):
         all_grads_p = []
@@ -210,15 +206,19 @@ class Layer:
         all_diags = []
         for i in range(self._batch_size):
             curr_sigma = self._gradient(np.atleast_2d(self._z.T[i]))[0]
+            #print(curr_sigma)
             diag = np.diag(curr_sigma)
             t = np.tensordot(self._x.T[i], np.identity(self._output_dim), axes=0)
             xt = np.dot(diag, self._weights)
             t = t.reshape(self._input_dim * self._output_dim, self._output_dim).T
             all_grads_p.append(np.dot(diag, t))
+            if len(all_grads_x) > 0:
+                assert(all_grads_x[-1].shape == xt.shape)
             all_grads_x.append(xt)
             all_diags.append(diag)
         all_grads_p = np.array(all_grads_p).reshape(self._batch_size * self._output_dim,
                                                     self._input_dim * self._output_dim)
+        self._all_grads_x = all_grads_x
         self._x_grad = block_diag(*all_grads_x)
         self._all_diags = np.array(all_diags).reshape(self._batch_size * self._output_dim,
                                                       self._output_dim)
@@ -227,7 +227,7 @@ class Layer:
     def calc_softmax_grad(self, labels):
         if not self._softmax_layer:
             raise BaseException("Can only be performed on a softmax layer")
-        self._delta = sm_activation_gx(self._x, labels, self._weights, self._bias).flatten()
+        self._delta = sm_activation_gx(self._x, labels, self._weights, self._bias)
         w_grad, b_grad = self._gradient(self._x, self._weights, self._bias, labels)
         self._theta_grad = np.concatenate((w_grad.T.flatten(), b_grad))
 
@@ -236,7 +236,7 @@ class Layer:
             raise BaseException("Can only be performed on a softmax layer")
         return softmax_obj(self._x, labels, self._weights, self._bias)
 
-    def set_weights(self, weights, update_bias=False):
+    def set_weights(self, weights):
         update_w = np.array(weights[
                             : self._input_dim * self._output_dim]).reshape(*self._weights.shape[::-1]).T
         update_b = np.array(weights[self._input_dim*self._output_dim:])
@@ -264,19 +264,19 @@ class Layer:
 
     def get_jacobian(self):
         ans = np.concatenate((self._jacobian, self._all_diags), axis=1)
-        #print(ans)
-        #print(self.get_params())
-        #print(self._weights)
-        #print('-------------------------')
         return ans
 
 
 class Network:
 
-    def __init__(self):
+    def __init__(self, regularization=False, alpha=0.0):
+        if alpha != 0.0 and not regularization:
+            raise BaseException("Can't provide alpha to a network without regularization")
         self._input_dim = -1
         self._output_dim = -1
         self._layers = []
+        self._regularization = regularization
+        self._alpha = alpha
 
     def add_layer(self, layer):
         if self._input_dim == -1:
@@ -292,7 +292,11 @@ class Network:
     def get_grad(self, input, labels):
         self.forward_pass(input)
         self.back_propagation(labels)
-        return np.concatenate([layer.get_theta_grad() for layer in self._layers])
+        ans = np.concatenate([layer.get_theta_grad() for layer in self._layers])
+        if self._regularization:
+            penalty_grad = 2*self.get_params()
+            ans = ans + self._alpha*penalty_grad
+        return ans
 
     def forward_pass(self, input):
         if self._input_dim != input.shape[0]:
@@ -326,12 +330,16 @@ class Network:
             curr_ind = layer.get_input_dim()*layer.get_output_dim()+layer.get_output_dim()
             curr_ind = curr_ind + last_ind
             curr_theta = np.array(new_weights[last_ind: curr_ind])
-            layer.set_weights(curr_theta, update_bias=True)
+            layer.set_weights(curr_theta)
             last_ind = curr_ind
 
     def calc_error(self, x, y):
         self.forward_pass(x)
         ans = self._layers[-1].calc_softmax_obj(y)
+        if self._regularization:
+            penalty = self.get_params()
+            penalty = np.sum(np.power(penalty, 2))
+            ans = ans + self._alpha*penalty
         return ans
 
     def get_param_num(self):
@@ -358,8 +366,8 @@ if __name__ == '__main__':
     mat = scipy.io.loadmat('SwissRollData.mat')
     labels = mat['Ct']
     training = mat['Yt']
-    x = training
-    y = labels
+    labels_training = []
+    labels_test = []
     """
     t = 50
     x = np.zeros((t**2, 2))

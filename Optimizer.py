@@ -56,7 +56,8 @@ def print_percentage(curr_ind, max_ind):
     print(output)
 
 
-def stochastic_gradient_descent(network, x, y, batch_size=100, epochs=1):
+def stochastic_gradient_descent(network, x, y, batch_size=100, epochs=1,
+                                x_validation=None, y_validation=None):
     """
     Performs a general one point iterative method on a given objective function.
     :param objective: The objective function
@@ -68,6 +69,7 @@ def stochastic_gradient_descent(network, x, y, batch_size=100, epochs=1):
     n, m = x.shape
     batches = create_batches(m, batch_size)
     obj_train = []
+    obj_valid = []
     alpha = 0.01
     for epoch in range(epochs):
         print('Epoch {}'.format(epoch+1))
@@ -75,8 +77,12 @@ def stochastic_gradient_descent(network, x, y, batch_size=100, epochs=1):
             print_percentage(curr_batch_ind, len(batches))
             curr_x = np.array([x.T[i] for i in batch]).T
             curr_y = np.array([y.T[i] for i in batch]).T
-            obj = network.calc_error(x, y)
-            obj_train.append(obj)
+            if curr_batch_ind % 150 == 0:
+                obj = network.calc_error(x, y)
+                if x_validation is not None:
+                    obj_v = network.calc_error(x_validation, y_validation)
+                    obj_valid.append(obj_v)
+                obj_train.append(obj)
             grad = network.get_grad(curr_x, curr_y)
             grad = -grad*alpha
             network.inc_weights(grad)
@@ -85,6 +91,8 @@ def stochastic_gradient_descent(network, x, y, batch_size=100, epochs=1):
     fig1, ax1 = plt.subplots()
     ax1.set_title('Objective function')
     plt.plot(range(len(obj_train)), obj_train)
+    if len(obj_valid) > 0:
+        plt.plot(range(len(obj_valid)), obj_valid)
     plt.savefig('objective_func.png')
     return network, obj_train
 
