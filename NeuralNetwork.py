@@ -71,7 +71,6 @@ def get_shapes(x, W, y, b):
 
 def sm_activation_gp(x, w, b, y):
     m, n, l = get_shapes(x, w.T, y, b)
-    #print('m:{}\n n:{}\n l:{}'.format(m, n, l))
     c = create_c_matrix(y)
     mu = get_mu(w, x, b, l)
     sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(l)])
@@ -87,41 +86,22 @@ def sm_activation_gp(x, w, b, y):
 
 
 def sm_activation_gx(x, y, W, b):
-    #print(x.shape)
     W = W.T
     m, n, l = get_shapes(x, W, y, b)
-    #print('w', W.shape)
-    #print('x', x.shape)
-    #print('y', y.shape)
-    #print('m:{}, n:{}, l:{}'.format(m, n, l))
     mu = get_mu(W, x, b, l)
-    mu = 0
     c = create_c_matrix(y)
-    #print('c', c.shape)
     v_sum = sum([np.exp(np.dot(W.T[i].T, x)+b[i]-mu) for i in range(l)])
-    #print('b before repmat', b.shape)
-    #print('b', np.matlib.repmat(np.atleast_2d(b).T, 1, m).shape)
-    #print('w*x', np.dot(W.T, x).shape)
     assert(np.matlib.repmat(np.atleast_2d(b).T, 1, m).shape == np.dot(W.T, x).shape)
     ans = (np.exp(np.dot(W.T, x)+np.matlib.repmat(np.atleast_2d(b).T, 1, m)))
     ans = ans/v_sum
-    #print(ans)
-    #print(c)
-    #print('ans', ans.shape)
     ans = ans - c
     ans = np.dot(W, ans)
-    #print(ans)
     ans = ans/m
-    #print(ans)
-    #exit()
-    #print(ans.shape)
-    #exit()
     return ans
 
 
 def softmax_obj(x, y, w, b):
     m, n, l = get_shapes(x, w.T, y, b)
-    #print('m:{}\n n:{}\n l:{}'.format(m, n, l))
     c = create_c_matrix(y)
     mu = get_mu(w, x, b, l)
     sum_all = sum([np.exp(np.dot(x.T, w[i])+b[i]-mu) for i in range(l)])
@@ -149,8 +129,9 @@ class Layer:
             self._forward_pass, self._gradient = activation
         self._input_dim = input_dim
         self._output_dim = output_dim
-        self._weights = np.random.rand(output_dim, input_dim)
-        self._bias = np.random.rand(output_dim)
+        self._weights = None
+        self._bias = None
+        self.reset_weights()
         self._x = None
         self._z = None
         self._a = None
@@ -164,6 +145,9 @@ class Layer:
         self._all_diags = None
         self._softmax_layer = softmax_layer
 
+    def reset_weights(self):
+        self._weights = np.random.rand(self._output_dim, self._input_dim)
+        self._bias = np.random.rand(self._output_dim)
 
     def get_input_dim(self):
         return self._input_dim
@@ -194,30 +178,31 @@ class Layer:
             self.calc_jacobian()
             jacob = self.get_jacobian()
             jacob_data = self.get_jacobian_data()
-            self._delta = np.dot(jacob_data.T, next_layer.get_delta().flatten())
-            my_grad = np.dot(jacob.T, next_layer.get_delta().flatten())
+            self._delta = np.dot(jacob_data.T, next_layer.get_delta().T.flatten())
+            my_grad = np.dot(jacob.T, next_layer.get_delta().T.flatten())
             self._g = my_grad[:self._input_dim*self._output_dim].reshape(*self._weights.shape)
             self._b = my_grad[self._input_dim*self._output_dim:].reshape(*self._bias.shape)
-            self._theta_grad = np.concatenate((self._g.T.flatten(), self._b))
+            self._theta_grad = np.concatenate((self._g.flatten(), self._b))
 
     def calc_jacobian(self):
         all_grads_p = []
         all_grads_x = []
         all_diags = []
+        cons = []
         for i in range(self._batch_size):
             curr_sigma = self._gradient(np.atleast_2d(self._z.T[i]))[0]
-            #print(curr_sigma)
             diag = np.diag(curr_sigma)
             t = np.tensordot(self._x.T[i], np.identity(self._output_dim), axes=0)
             xt = np.dot(diag, self._weights)
             t = t.reshape(self._input_dim * self._output_dim, self._output_dim).T
-            all_grads_p.append(np.dot(diag, t))
+            grad_p = np.dot(diag, t)
+            all_grads_p.append(grad_p)
+            cons.append(np.concatenate((grad_p, diag), axis=1))
             if len(all_grads_x) > 0:
                 assert(all_grads_x[-1].shape == xt.shape)
             all_grads_x.append(xt)
             all_diags.append(diag)
-        all_grads_p = np.array(all_grads_p).reshape(self._batch_size * self._output_dim,
-                                                    self._input_dim * self._output_dim)
+        all_grads_p = np.concatenate(cons)
         self._all_grads_x = all_grads_x
         self._x_grad = block_diag(*all_grads_x)
         self._all_diags = np.array(all_diags).reshape(self._batch_size * self._output_dim,
@@ -263,8 +248,7 @@ class Layer:
         return self._x_grad
 
     def get_jacobian(self):
-        ans = np.concatenate((self._jacobian, self._all_diags), axis=1)
-        return ans
+        return self._jacobian
 
 
 class Network:
@@ -289,10 +273,20 @@ class Network:
     def predict(self, input):
         return self.forward_pass(input)
 
+    def reset_weights(self):
+        for layer in self._layers:
+            layer.reset_weights()
+
     def get_grad(self, input, labels):
-        self.forward_pass(input)
-        self.back_propagation(labels)
-        ans = np.concatenate([layer.get_theta_grad() for layer in self._layers])
+        batch_size = input.shape[1]
+        ans = np.zeros(self.get_param_num())
+        for i in range(batch_size):
+            curr_input = np.atleast_2d(input.T[i]).T
+            curr_labels = np.atleast_2d(labels.T[i]).T
+            self.forward_pass(curr_input)
+            self.back_propagation(curr_labels)
+            ans = ans + np.concatenate([layer.get_theta_grad() for layer in self._layers])
+        ans = ans / batch_size
         if self._regularization:
             penalty_grad = 2*self.get_params()
             ans = ans + self._alpha*penalty_grad
@@ -353,6 +347,12 @@ class Network:
     def get_params(self):
         params = [layer.get_params() for layer in self._layers]
         return np.concatenate(params)
+
+    def get_regularization(self):
+        return self._regularization
+
+    def get_alpha(self):
+        return self._alpha
 
 #TESTING
 
